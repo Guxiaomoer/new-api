@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -92,24 +93,29 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 	}
 	CloseResponseBodyGracefully(resp)
 	var errResponse dto.GeneralErrorResponse
-	responseBodyText := string(responseBody)
-	responseBodyPreview := common.LocalLogPreview(responseBodyText)
-	buildErrWithBody := func(message string) error {
-		if message == "" {
-			return fmt.Errorf("bad response status code %d, body: %s", resp.StatusCode, responseBodyText)
-		}
-		return fmt.Errorf("bad response status code %d, message: %s, body: %s", resp.StatusCode, message, responseBodyText)
+	responseBodyPreview := common.LocalLogPreview(string(responseBody))
+
+	buildSafeUpstreamErr := func(code types.ErrorCode) *types.NewAPIError {
+		return types.NewOpenAIError(errors.New(operation_setting.GetUpstreamErrorMessage()), code, resp.StatusCode)
 	}
 
 	err = common.Unmarshal(responseBody, &errResponse)
 	if err != nil {
 		if showBodyWhenFail {
-			newApiErr.Err = buildErrWithBody("")
+			newApiErr.Err = fmt.Errorf("bad response status code %d", resp.StatusCode)
 		} else {
 			logger.LogError(ctx, fmt.Sprintf("bad response status code %d, body: %s", resp.StatusCode, responseBodyPreview))
 			newApiErr.Err = fmt.Errorf("bad response status code %d", resp.StatusCode)
 		}
 		return
+	}
+
+	if IsRateLimitCooldownError(errResponse) {
+		return types.WithOpenAIError(types.OpenAIError{
+			Message: operation_setting.GetUpstreamRateLimitCooldownMessage(),
+			Type:    "rate_limit_error",
+			Code:    "rate_limit_cooldown",
+		}, resp.StatusCode)
 	}
 
 	if common.GetJsonType(errResponse.Error) == "object" {
@@ -118,16 +124,33 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		if oaiError != nil {
 			newApiErr = types.WithOpenAIError(*oaiError, resp.StatusCode)
 			if showBodyWhenFail {
-				newApiErr.Err = buildErrWithBody(newApiErr.Error())
+				return buildSafeUpstreamErr(newApiErr.GetErrorCode())
 			}
 			return
 		}
 	}
 	newApiErr = types.NewOpenAIError(errors.New(errResponse.ToMessage()), types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
 	if showBodyWhenFail {
-		newApiErr.Err = buildErrWithBody(newApiErr.Error())
+		return buildSafeUpstreamErr(newApiErr.GetErrorCode())
 	}
 	return
+}
+
+func IsRateLimitCooldownError(errResponse dto.GeneralErrorResponse) bool {
+	if strings.EqualFold(errResponse.LimitType, "cooldown") {
+		return true
+	}
+	if fmt.Sprintf("%v", errResponse.Code) == "rate_limit_cooldown" {
+		return true
+	}
+	if common.GetJsonType(errResponse.Error) != "object" {
+		return false
+	}
+	openAIError := errResponse.TryToOpenAIError()
+	if openAIError == nil {
+		return false
+	}
+	return fmt.Sprintf("%v", openAIError.Code) == "rate_limit_cooldown"
 }
 
 func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) {

@@ -10,10 +10,105 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestRelayErrorHandlerMasksRateLimitCooldownBody(t *testing.T) {
+	t.Parallel()
+
+	responseBody := `{"error":{"message":"通▸知◁群 １７５８７７５５２ 公益 token 先休息10分钟","type":"invalid_request_error","code":"rate_limit_cooldown"},"message":"通▸知◁群 １７５８７７５５２ 公益 token 先休息10分钟","code":"rate_limit_cooldown","limit_type":"cooldown"}`
+	resp := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Body:       io.NopCloser(strings.NewReader(responseBody)),
+	}
+
+	newAPIError := RelayErrorHandler(context.Background(), resp, true)
+
+	require.Equal(t, types.ErrorCode("rate_limit_cooldown"), newAPIError.GetErrorCode())
+	require.Equal(t, "上游服务触发冷却限制，请稍后重试", newAPIError.Error())
+	require.NotContains(t, newAPIError.Error(), "通▸知◁")
+	require.NotContains(t, newAPIError.Error(), "通知")
+	require.NotContains(t, newAPIError.Error(), "公益")
+	require.NotContains(t, newAPIError.Error(), "body:")
+}
+
+func TestRelayErrorHandlerMasksNestedRateLimitCooldownBody(t *testing.T) {
+	t.Parallel()
+
+	responseBody := `{"error":{"message":"通▸知◁群 １７５８７７５５２ 公益 token 先休息10分钟","type":"invalid_request_error","code":"rate_limit_cooldown"}}`
+	resp := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Body:       io.NopCloser(strings.NewReader(responseBody)),
+	}
+
+	newAPIError := RelayErrorHandler(context.Background(), resp, true)
+
+	require.Equal(t, types.ErrorCode("rate_limit_cooldown"), newAPIError.GetErrorCode())
+	require.Equal(t, "上游服务触发冷却限制，请稍后重试", newAPIError.Error())
+	require.NotContains(t, newAPIError.Error(), "通▸知◁")
+	require.NotContains(t, newAPIError.Error(), "通知")
+	require.NotContains(t, newAPIError.Error(), "公益")
+	require.NotContains(t, newAPIError.Error(), "body:")
+}
+
+func TestRelayErrorHandlerMasksShowBodyWhenFailUpstreamError(t *testing.T) {
+	t.Parallel()
+
+	responseBody := `{"error":{"message":"通▸知◁群 １７５８７７５５２ 公益 token","type":"invalid_request_error","code":"bad_upstream"}}`
+	resp := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Body:       io.NopCloser(strings.NewReader(responseBody)),
+	}
+
+	newAPIError := RelayErrorHandler(context.Background(), resp, true)
+
+	require.Equal(t, types.ErrorCode("bad_upstream"), newAPIError.GetErrorCode())
+	require.Equal(t, "上游服务返回错误，请稍后重试", newAPIError.Error())
+	require.NotContains(t, newAPIError.Error(), "通▸知◁")
+	require.NotContains(t, newAPIError.Error(), "公益")
+	require.NotContains(t, newAPIError.Error(), "body:")
+}
+
+func TestRelayErrorHandlerUsesConfiguredRateLimitCooldownMessage(t *testing.T) {
+	oldMessage := operation_setting.GetGeneralSetting().UpstreamRateLimitCooldownMessage
+	operation_setting.GetGeneralSetting().UpstreamRateLimitCooldownMessage = "自定义冷却提示"
+	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().UpstreamRateLimitCooldownMessage = oldMessage
+	})
+
+	responseBody := `{"code":"rate_limit_cooldown"}`
+	resp := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Body:       io.NopCloser(strings.NewReader(responseBody)),
+	}
+
+	newAPIError := RelayErrorHandler(context.Background(), resp, true)
+
+	require.Equal(t, types.ErrorCode("rate_limit_cooldown"), newAPIError.GetErrorCode())
+	require.Equal(t, "自定义冷却提示", newAPIError.Error())
+}
+
+func TestRelayErrorHandlerFallsBackForUnsafeConfiguredMessage(t *testing.T) {
+	oldMessage := operation_setting.GetGeneralSetting().UpstreamRateLimitCooldownMessage
+	operation_setting.GetGeneralSetting().UpstreamRateLimitCooldownMessage = strings.Repeat("很长", 80)
+	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().UpstreamRateLimitCooldownMessage = oldMessage
+	})
+
+	responseBody := `{"code":"rate_limit_cooldown"}`
+	resp := &http.Response{
+		StatusCode: http.StatusBadRequest,
+		Body:       io.NopCloser(strings.NewReader(responseBody)),
+	}
+
+	newAPIError := RelayErrorHandler(context.Background(), resp, true)
+
+	require.Equal(t, types.ErrorCode("rate_limit_cooldown"), newAPIError.GetErrorCode())
+	require.Equal(t, "上游服务触发冷却限制，请稍后重试", newAPIError.Error())
+}
 
 func TestResetStatusCode(t *testing.T) {
 	t.Parallel()

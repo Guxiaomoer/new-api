@@ -21,13 +21,15 @@ type OpenAIErrorWithStatusCode struct {
 }
 
 type GeneralErrorResponse struct {
-	Error    json.RawMessage `json:"error"`
-	Message  string          `json:"message"`
-	Msg      string          `json:"msg"`
-	Err      string          `json:"err"`
-	ErrorMsg string          `json:"error_msg"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-	Detail   string          `json:"detail,omitempty"`
+	Error     json.RawMessage `json:"error"`
+	Message   string          `json:"message"`
+	Msg       string          `json:"msg"`
+	Err       string          `json:"err"`
+	ErrorMsg  string          `json:"error_msg"`
+	Code      any             `json:"code,omitempty"`
+	LimitType string          `json:"limit_type,omitempty"`
+	Metadata  json.RawMessage `json:"metadata,omitempty"`
+	Detail    string          `json:"detail,omitempty"`
 	Header   struct {
 		Message string `json:"message"`
 	} `json:"header"`
