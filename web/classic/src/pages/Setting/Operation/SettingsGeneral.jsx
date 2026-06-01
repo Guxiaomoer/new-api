@@ -57,6 +57,8 @@ export default function GeneralSettings(props) {
     DefaultCollapseSidebar: false,
     DemoSiteEnabled: false,
     SelfUseModeEnabled: false,
+    'general_setting.upstream_pollution_keywords': '',
+    'general_setting.upstream_pollution_disable_channel': true,
     'token_setting.max_user_tokens': 1000,
   });
   const refForm = useRef();
@@ -388,6 +390,38 @@ export default function GeneralSettings(props) {
                   checkedText='｜'
                   uncheckedText='〇'
                   onChange={handleFieldChange('SelfUseModeEnabled')}
+                />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'general_setting.upstream_pollution_disable_channel'}
+                  label={t('命中污染后自动禁用渠道')}
+                  extraText={t(
+                    '开启后，响应命中关键词会自动禁用对应渠道，方便手动更换 key',
+                  )}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={handleFieldChange(
+                    'general_setting.upstream_pollution_disable_channel',
+                  )}
+                />
+              </Col>
+              <Col span={24}>
+                <Form.TextArea
+                  field={'general_setting.upstream_pollution_keywords'}
+                  label={t('上游污染检测关键词')}
+                  extraText={t(
+                    '每行一条，命中任意一条即拦截响应、记录日志，并按开关决定是否禁用渠道',
+                  )}
+                  placeholder={t('例如：\n通▸知◁群\n公益 token\nchatcmpl_local_')}
+                  autosize={{ minRows: 4, maxRows: 10 }}
+                  onChange={handleFieldChange(
+                    'general_setting.upstream_pollution_keywords',
+                  )}
+                  showClear
                 />
               </Col>
             </Row>

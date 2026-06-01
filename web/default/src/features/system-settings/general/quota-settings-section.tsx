@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
 import {
@@ -55,6 +56,8 @@ const quotaSchema = z.object({
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
+    upstream_pollution_keywords: z.string(),
+    upstream_pollution_disable_channel: z.boolean(),
   }),
   quota_setting: z.object({
     enable_free_model_pre_consume: z.boolean(),
@@ -92,9 +95,19 @@ export function QuotaSettingsSection({
       defaultValues,
       onSubmit: async (_data, changedFields) => {
         for (const [key, value] of Object.entries(changedFields)) {
+          if (value === undefined || value === null) continue
+          if (typeof value === 'object') continue
+
+          let serialized: string | boolean = value as string | boolean
+          if (typeof value === 'boolean') {
+            serialized = String(value)
+          } else if (typeof value === 'number') {
+            serialized = Number.isFinite(value) ? String(value) : '0'
+          }
+
           await updateOption.mutateAsync({
             key,
-            value: value as string | number | boolean,
+            value: serialized,
           })
         }
       },
@@ -283,6 +296,61 @@ export function QuotaSettingsSection({
                 </FormItem>
               )}
             />
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='general_setting.upstream_pollution_disable_channel'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>
+                        {t('Auto-disable channel on upstream pollution')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'When enabled, a response matching pollution keywords will disable the corresponding channel so you can replace the key manually.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={updateOption.isPending}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='general_setting.upstream_pollution_keywords'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Upstream pollution keywords')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={6}
+                        placeholder={t(
+                          'One keyword per line. Example:\n通▸知◁群\n公益 token\nchatcmpl_local_'
+                        )}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'If any keyword is found in the upstream response, the response is blocked, logged, and handled according to the auto-disable switch.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGridItem>
           </SettingsFormGrid>
         </SettingsForm>
       </Form>

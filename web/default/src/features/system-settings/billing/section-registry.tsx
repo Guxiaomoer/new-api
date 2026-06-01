@@ -64,6 +64,10 @@ const BILLING_SECTIONS = [
           TopUpLink: settings.TopUpLink,
           general_setting: {
             docs_link: settings['general_setting.docs_link'],
+            upstream_pollution_keywords:
+              settings['general_setting.upstream_pollution_keywords'],
+            upstream_pollution_disable_channel:
+              settings['general_setting.upstream_pollution_disable_channel'],
           },
           quota_setting: {
             enable_free_model_pre_consume:
