@@ -16,11 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ChangeEvent } from 'react'
+import { useEffect, type ChangeEvent } from 'react'
 import * as z from 'zod'
-import type { Resolver } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import i18next from 'i18next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Form,
@@ -45,7 +47,6 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
-import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const quotaSchema = z.object({
@@ -66,6 +67,43 @@ const quotaSchema = z.object({
 
 type QuotaFormValues = z.infer<typeof quotaSchema>
 
+type FlatQuotaSettings = {
+  QuotaForNewUser: number
+  PreConsumedQuota: number
+  QuotaForInviter: number
+  QuotaForInvitee: number
+  TopUpLink: string
+  'general_setting.docs_link': string
+  'general_setting.upstream_pollution_keywords': string
+  'general_setting.upstream_pollution_disable_channel': boolean
+  'quota_setting.enable_free_model_pre_consume': boolean
+}
+
+const flattenQuotaValues = (
+  values: QuotaFormValues
+): FlatQuotaSettings => ({
+  QuotaForNewUser: values.QuotaForNewUser,
+  PreConsumedQuota: values.PreConsumedQuota,
+  QuotaForInviter: values.QuotaForInviter,
+  QuotaForInvitee: values.QuotaForInvitee,
+  TopUpLink: values.TopUpLink,
+  'general_setting.docs_link': values.general_setting.docs_link,
+  'general_setting.upstream_pollution_keywords':
+    values.general_setting.upstream_pollution_keywords,
+  'general_setting.upstream_pollution_disable_channel':
+    values.general_setting.upstream_pollution_disable_channel,
+  'quota_setting.enable_free_model_pre_consume':
+    values.quota_setting.enable_free_model_pre_consume,
+})
+
+const serializeValue = (value: unknown): string => {
+  if (typeof value === 'boolean') return String(value)
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? String(value) : '0'
+  }
+  return String(value ?? '')
+}
+
 type QuotaSettingsSectionProps = {
   defaultValues: QuotaFormValues
   complianceConfirmed?: boolean
@@ -85,33 +123,43 @@ export function QuotaSettingsSection({
       )
     }
 
-  const { form, handleSubmit, isDirty, isSubmitting } =
-    useSettingsForm<QuotaFormValues>({
-      resolver: zodResolver(quotaSchema) as Resolver<
-        QuotaFormValues,
-        unknown,
-        QuotaFormValues
-      >,
-      defaultValues,
-      onSubmit: async (_data, changedFields) => {
-        for (const [key, value] of Object.entries(changedFields)) {
-          if (value === undefined || value === null) continue
-          if (typeof value === 'object') continue
+  const form = useForm<QuotaFormValues, unknown, QuotaFormValues>({
+    resolver: zodResolver(quotaSchema) as Resolver<
+      QuotaFormValues,
+      unknown,
+      QuotaFormValues
+    >,
+    defaultValues,
+  })
 
-          let serialized: string | boolean = value as string | boolean
-          if (typeof value === 'boolean') {
-            serialized = String(value)
-          } else if (typeof value === 'number') {
-            serialized = Number.isFinite(value) ? String(value) : '0'
-          }
+  useEffect(() => {
+    form.reset(defaultValues)
+  }, [defaultValues, form])
 
-          await updateOption.mutateAsync({
-            key,
-            value: serialized,
-          })
-        }
-      },
-    })
+  const onSubmit = async (values: QuotaFormValues) => {
+    const flattenedDefaults = flattenQuotaValues(defaultValues)
+    const flattenedValues = flattenQuotaValues(values)
+    const updates = Object.entries(flattenedValues).filter(
+      ([key, value]) =>
+        value !== flattenedDefaults[key as keyof FlatQuotaSettings]
+    )
+
+    if (updates.length === 0) {
+      toast.info(i18next.t('No changes to save'))
+      return
+    }
+
+    for (const [key, value] of updates) {
+      await updateOption.mutateAsync({
+        key,
+        value: serializeValue(value),
+      })
+    }
+  }
+
+  const isDirty = form.formState.isDirty
+  const isSubmitting = form.formState.isSubmitting
+  const handleSubmit = form.handleSubmit(onSubmit)
 
   return (
     <SettingsSection title={t('Quota Settings')}>
@@ -266,7 +314,11 @@ export function QuotaSettingsSection({
                   <FormControl>
                     <Input
                       placeholder={t('https://example.com/topup')}
-                      {...field}
+                      value={field.value ?? ''}
+                      onChange={(event) => field.onChange(event.target.value)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
                     />
                   </FormControl>
                   <FormDescription>
@@ -286,7 +338,11 @@ export function QuotaSettingsSection({
                   <FormControl>
                     <Input
                       placeholder={t('https://docs.example.com')}
-                      {...field}
+                      value={field.value ?? ''}
+                      onChange={(event) => field.onChange(event.target.value)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
                     />
                   </FormControl>
                   <FormDescription>
@@ -338,7 +394,11 @@ export function QuotaSettingsSection({
                         placeholder={t(
                           'One keyword per line. Example:\n通▸知◁群\n公益 token\nchatcmpl_local_'
                         )}
-                        {...field}
+                        value={field.value ?? ''}
+                        onChange={(event) => field.onChange(event.target.value)}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
                       />
                     </FormControl>
                     <FormDescription>
