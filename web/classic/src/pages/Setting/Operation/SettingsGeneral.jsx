@@ -27,6 +27,8 @@ import {
   Spin,
   Modal,
   Input,
+  Switch,
+  TextArea,
   Typography,
 } from '@douyinfe/semi-ui';
 import {
@@ -395,34 +397,54 @@ export default function GeneralSettings(props) {
             </Row>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'general_setting.upstream_pollution_disable_channel'}
-                  label={t('命中污染后自动禁用渠道')}
-                  extraText={t(
-                    '开启后，响应命中关键词会自动禁用对应渠道，方便手动更换 key',
-                  )}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={handleFieldChange(
-                    'general_setting.upstream_pollution_disable_channel',
-                  )}
-                />
+                <Form.Slot label={t('命中污染后自动禁用渠道')}>
+                  <Switch
+                    checked={
+                      !!inputs[
+                        'general_setting.upstream_pollution_disable_channel'
+                      ]
+                    }
+                    size='default'
+                    checkedText='｜'
+                    uncheckedText='〇'
+                    onChange={(checked) =>
+                      handleFieldChange(
+                        'general_setting.upstream_pollution_disable_channel',
+                      )(checked)
+                    }
+                  />
+                  <Text
+                    type='tertiary'
+                    size='small'
+                    style={{ marginTop: 4, display: 'block' }}
+                  >
+                    {t('开启后，响应命中关键词会自动禁用对应渠道，方便手动更换 key')}
+                  </Text>
+                </Form.Slot>
               </Col>
               <Col span={24}>
-                <Form.TextArea
-                  field={'general_setting.upstream_pollution_keywords'}
-                  label={t('上游污染检测关键词')}
-                  extraText={t(
-                    '每行一条，命中任意一条即拦截响应、记录日志，并按开关决定是否禁用渠道',
-                  )}
-                  placeholder={t('例如：\n通▸知◁群\n公益 token\nchatcmpl_local_')}
-                  autosize={{ minRows: 4, maxRows: 10 }}
-                  onChange={handleFieldChange(
-                    'general_setting.upstream_pollution_keywords',
-                  )}
-                  showClear
-                />
+                <Form.Slot label={t('上游污染检测关键词')}>
+                  <TextArea
+                    value={
+                      inputs['general_setting.upstream_pollution_keywords'] ||
+                      ''
+                    }
+                    onChange={(val) =>
+                      handleFieldChange(
+                        'general_setting.upstream_pollution_keywords',
+                      )(val)
+                    }
+                    placeholder={t('例如：\n通▸知◁群\n公益 token\nchatcmpl_local_')}
+                    autosize={{ minRows: 4, maxRows: 10 }}
+                  />
+                  <Text
+                    type='tertiary'
+                    size='small'
+                    style={{ marginTop: 4, display: 'block' }}
+                  >
+                    {t('每行一条，命中任意一条即拦截响应、记录日志，并按开关决定是否禁用渠道')}
+                  </Text>
+                </Form.Slot>
               </Col>
             </Row>
             <Row gutter={16}>
