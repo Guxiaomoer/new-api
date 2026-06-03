@@ -160,7 +160,12 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
-	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, common.LocalLogPreview(content)))
+	recordRelayLog(c, LogTypeError, userId, channelId, modelName, tokenName, content, tokenId, useTimeSeconds, isStream, group, other)
+}
+
+func recordRelayLog(c *gin.Context, logType int, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
+	isStream bool, group string, other map[string]interface{}) {
+	logger.LogInfo(c, fmt.Sprintf("record relay log: type=%d, userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", logType, userId, channelId, modelName, tokenName, common.LocalLogPreview(content)))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
@@ -176,7 +181,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 		UserId:           userId,
 		Username:         username,
 		CreatedAt:        common.GetTimestamp(),
-		Type:             LogTypeError,
+		Type:             logType,
 		Content:          content,
 		PromptTokens:     0,
 		CompletionTokens: 0,

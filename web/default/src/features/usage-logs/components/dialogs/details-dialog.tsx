@@ -421,6 +421,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const showAdminIp =
     !!props.log.ip && (showTiming || (props.isAdmin && isTopup))
   const adminInfo = other?.admin_info
+  const pollutionInfo = props.isAdmin ? adminInfo?.upstream_pollution : undefined
   const topupAuditFields =
     isTopup && props.isAdmin && adminInfo
       ? ([
@@ -655,6 +656,41 @@ export function DetailsDialog(props: DetailsDialogProps) {
                     </div>
                   </div>
                 </div>
+              </DetailSection>
+            )}
+
+            {/* Upstream pollution hit (admin only) */}
+            {pollutionInfo && (
+              <DetailSection
+                icon={<AlertTriangle className='size-3.5' aria-hidden='true' />}
+                label={t('Upstream Pollution Hit')}
+                variant='danger'
+              >
+                {pollutionInfo.keyword && (
+                  <DetailRow
+                    label={t('Keyword')}
+                    value={pollutionInfo.keyword}
+                    mono
+                  />
+                )}
+                {(pollutionInfo.channel_id || pollutionInfo.channel_name) && (
+                  <DetailRow
+                    label={t('Channel')}
+                    value={`${pollutionInfo.channel_name || ''}${pollutionInfo.channel_id ? ` #${pollutionInfo.channel_id}` : ''}`.trim()}
+                    mono
+                  />
+                )}
+                {pollutionInfo.model && (
+                  <DetailRow label={t('Model')} value={pollutionInfo.model} mono />
+                )}
+                <DetailRow
+                  label={t('Auto-disable')}
+                  value={
+                    pollutionInfo.auto_disable_configured
+                      ? t('Configured')
+                      : t('Not configured')
+                  }
+                />
               </DetailSection>
             )}
 

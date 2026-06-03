@@ -433,6 +433,18 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     };
   }
 
+  const pollutionInfo = other?.admin_info?.upstream_pollution;
+  if (pollutionInfo) {
+    return {
+      segments: [
+        { text: t('上游污染命中'), tone: 'primary' },
+        pollutionInfo.keyword
+          ? { text: pollutionInfo.keyword, tone: 'secondary' }
+          : null,
+      ].filter(Boolean),
+    };
+  }
+
   if (other == null || record.type !== 2) {
     return null;
   }

@@ -61,6 +61,8 @@ export default function GeneralSettings(props) {
     SelfUseModeEnabled: false,
     'general_setting.upstream_pollution_keywords': '',
     'general_setting.upstream_pollution_disable_channel': true,
+    'general_setting.upstream_pollution_json_template': '',
+    'general_setting.upstream_pollution_stream_template': '',
     'token_setting.max_user_tokens': 1000,
   });
   const refForm = useRef();
@@ -443,6 +445,64 @@ export default function GeneralSettings(props) {
                     style={{ marginTop: 4, display: 'block' }}
                   >
                     {t('每行一条，命中任意一条即拦截响应、记录日志，并按开关决定是否禁用渠道')}
+                  </Text>
+                </Form.Slot>
+              </Col>
+              <Col span={24}>
+                <Form.Slot label={t('污染拦截非流式响应模板')}>
+                  <TextArea
+                    value={
+                      inputs[
+                        'general_setting.upstream_pollution_json_template'
+                      ] || ''
+                    }
+                    onChange={(val) =>
+                      handleFieldChange(
+                        'general_setting.upstream_pollution_json_template',
+                      )(val)
+                    }
+                    placeholder={t(
+                      '留空则返回默认错误。支持 Go template 变量：{{.Model}} {{.Keyword}} {{.ChannelId}} {{.ChannelName}} {{.RequestId}} {{.Created}} {{.Timestamp}}；变量放入 JSON 字符串时建议写 {{json .Model}} 这种安全转义形式',
+                    )}
+                    autosize={{ minRows: 6, maxRows: 16 }}
+                  />
+                  <Text
+                    type='tertiary'
+                    size='small'
+                    style={{ marginTop: 4, display: 'block' }}
+                  >
+                    {t(
+                      '命中关键词且请求为非流式时，模板渲染结果将以 HTTP 200 + application/json 返回给下游；模板错误或 JSON 无效会回退默认错误响应',
+                    )}
+                  </Text>
+                </Form.Slot>
+              </Col>
+              <Col span={24}>
+                <Form.Slot label={t('污染拦截流式响应模板')}>
+                  <TextArea
+                    value={
+                      inputs[
+                        'general_setting.upstream_pollution_stream_template'
+                      ] || ''
+                    }
+                    onChange={(val) =>
+                      handleFieldChange(
+                        'general_setting.upstream_pollution_stream_template',
+                      )(val)
+                    }
+                    placeholder={t(
+                      '留空则返回默认 SSE 错误帧。模板需包含完整 SSE 帧，例如：data: {"choices":[{"delta":{"content":"已拦截"}}]}\n\ndata: [DONE]\n\n',
+                    )}
+                    autosize={{ minRows: 6, maxRows: 16 }}
+                  />
+                  <Text
+                    type='tertiary'
+                    size='small'
+                    style={{ marginTop: 4, display: 'block' }}
+                  >
+                    {t(
+                      '命中关键词且请求为流式时，模板渲染结果将以 HTTP 200 + text/event-stream 原样返回给下游',
+                    )}
                   </Text>
                 </Form.Slot>
               </Col>

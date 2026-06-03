@@ -51,6 +51,8 @@ const OperationSetting = () => {
     SelfUseModeEnabled: false,
     'general_setting.upstream_pollution_keywords': '',
     'general_setting.upstream_pollution_disable_channel': true,
+    'general_setting.upstream_pollution_json_template': '',
+    'general_setting.upstream_pollution_stream_template': '',
 
     /* 顶栏模块管理 */
     HeaderNavModules: '',

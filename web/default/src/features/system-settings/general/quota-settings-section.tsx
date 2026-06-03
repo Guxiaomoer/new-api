@@ -59,6 +59,8 @@ const quotaSchema = z.object({
     docs_link: z.string(),
     upstream_pollution_keywords: z.string(),
     upstream_pollution_disable_channel: z.boolean(),
+    upstream_pollution_json_template: z.string(),
+    upstream_pollution_stream_template: z.string(),
   }),
   quota_setting: z.object({
     enable_free_model_pre_consume: z.boolean(),
@@ -76,6 +78,8 @@ type FlatQuotaSettings = {
   'general_setting.docs_link': string
   'general_setting.upstream_pollution_keywords': string
   'general_setting.upstream_pollution_disable_channel': boolean
+  'general_setting.upstream_pollution_json_template': string
+  'general_setting.upstream_pollution_stream_template': string
   'quota_setting.enable_free_model_pre_consume': boolean
 }
 
@@ -92,6 +96,10 @@ const flattenQuotaValues = (
     values.general_setting.upstream_pollution_keywords,
   'general_setting.upstream_pollution_disable_channel':
     values.general_setting.upstream_pollution_disable_channel,
+  'general_setting.upstream_pollution_json_template':
+    values.general_setting.upstream_pollution_json_template,
+  'general_setting.upstream_pollution_stream_template':
+    values.general_setting.upstream_pollution_stream_template,
   'quota_setting.enable_free_model_pre_consume':
     values.quota_setting.enable_free_model_pre_consume,
 })
@@ -404,6 +412,72 @@ export function QuotaSettingsSection({
                     <FormDescription>
                       {t(
                         'If any keyword is found in the upstream response, the response is blocked, logged, and handled according to the auto-disable switch.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='general_setting.upstream_pollution_json_template'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {t('Upstream pollution non-stream response template')}
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={8}
+                        placeholder={t(
+                          'Empty uses the default error response. Supports Go template variables: {{.Model}} {{.Keyword}} {{.ChannelId}} {{.ChannelName}} {{.RequestId}} {{.Created}} {{.Timestamp}}. Use {{json .Model}} when inserting variables into JSON strings.'
+                        )}
+                        value={field.value ?? ''}
+                        onChange={(event) => field.onChange(event.target.value)}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'When a non-stream response matches a keyword, the rendered template is returned to downstream clients as HTTP 200 application/json. Template errors or invalid JSON fall back to the default error response.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='general_setting.upstream_pollution_stream_template'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {t('Upstream pollution stream response template')}
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={8}
+                        placeholder={t(
+                          'Empty uses the default SSE error frame. The template must include complete SSE frames, for example: data: {"choices":[{"delta":{"content":"Blocked"}}]}\n\ndata: [DONE]\n\n'
+                        )}
+                        value={field.value ?? ''}
+                        onChange={(event) => field.onChange(event.target.value)}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'When a stream response matches a keyword, the rendered template is returned to downstream clients as HTTP 200 text/event-stream without further modification.'
                       )}
                     </FormDescription>
                     <FormMessage />

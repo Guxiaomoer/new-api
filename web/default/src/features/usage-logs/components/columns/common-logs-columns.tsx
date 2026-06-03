@@ -105,6 +105,17 @@ function buildDetailSegments(
     return [{ text: t('Async task refund') }]
   }
 
+  const pollutionInfo = other?.admin_info?.upstream_pollution
+  if (pollutionInfo) {
+    const segments: DetailSegment[] = [
+      { text: t('Upstream Pollution Hit'), danger: true },
+    ]
+    if (pollutionInfo.keyword) {
+      segments.push({ text: pollutionInfo.keyword, muted: true })
+    }
+    return segments
+  }
+
   if (log.type !== 2) return []
 
   const isViolation = isViolationFeeLog(other)

@@ -31,6 +31,12 @@ type GeneralSetting struct {
 	UpstreamPollutionKeywords string `json:"upstream_pollution_keywords"`
 	// 命中污染后是否自动禁用渠道
 	UpstreamPollutionDisableChannel bool `json:"upstream_pollution_disable_channel"`
+	// 命中污染后,非流式响应返回给下游的自定义模板（text/template 语法）。空 = 退回硬编码 error 响应。
+	// 可用变量: {{.Model}} {{.Keyword}} {{.ChannelId}} {{.ChannelName}} {{.RequestId}} {{.Created}} {{.Timestamp}}
+	UpstreamPollutionJSONTemplate string `json:"upstream_pollution_json_template"`
+	// 命中污染后,流式响应返回给下游的自定义模板（text/template 语法）。空 = 退回硬编码 SSE error 帧。
+	// 模板需自行包含完整 SSE 帧格式（含 "data: " 前缀、"\n\n" 分隔符、终止 "[DONE]"）。可用变量同上。
+	UpstreamPollutionStreamTemplate string `json:"upstream_pollution_stream_template"`
 }
 
 // 默认配置
@@ -47,6 +53,8 @@ var generalSetting = GeneralSetting{
 公益 token
 chatcmpl_local_`,
 	UpstreamPollutionDisableChannel: true,
+	UpstreamPollutionJSONTemplate:   "",
+	UpstreamPollutionStreamTemplate: "",
 }
 
 func init() {
@@ -97,6 +105,17 @@ func GetUpstreamPollutionKeywords() []string {
 // IsUpstreamPollutionDisableChannel 命中污染后是否自动禁用渠道
 func IsUpstreamPollutionDisableChannel() bool {
 	return generalSetting.UpstreamPollutionDisableChannel
+}
+
+// GetUpstreamPollutionJSONTemplate 返回非流式拦截响应模板（原样，调用方负责渲染和容错）
+func GetUpstreamPollutionJSONTemplate() string {
+	return strings.TrimSpace(generalSetting.UpstreamPollutionJSONTemplate)
+}
+
+// GetUpstreamPollutionStreamTemplate 返回流式拦截响应模板（原样,调用方负责渲染和容错）
+// 注意: 此模板不做 TrimSpace,因为 SSE 帧的换行结构是有语义的
+func GetUpstreamPollutionStreamTemplate() string {
+	return generalSetting.UpstreamPollutionStreamTemplate
 }
 
 func sanitizeUpstreamErrorMessage(message string, fallback string) string {

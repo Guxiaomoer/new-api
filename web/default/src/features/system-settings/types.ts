@@ -192,6 +192,8 @@ export type BillingSettings = {
   'general_setting.docs_link': string
   'general_setting.upstream_pollution_keywords': string
   'general_setting.upstream_pollution_disable_channel': boolean
+  'general_setting.upstream_pollution_json_template': string
+  'general_setting.upstream_pollution_stream_template': string
   'quota_setting.enable_free_model_pre_consume': boolean
   QuotaPerUnit: number
   USDExchangeRate: number

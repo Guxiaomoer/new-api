@@ -92,6 +92,14 @@ export interface ChannelAffinityInfo {
   using_group?: string
 }
 
+export interface UpstreamPollutionInfo {
+  keyword?: string
+  channel_id?: number
+  channel_name?: string
+  model?: string
+  auto_disable_configured?: boolean
+}
+
 export interface LogOtherData {
   admin_info?: {
     is_multi_key?: boolean
@@ -99,6 +107,7 @@ export interface LogOtherData {
     use_channel?: number[]
     local_count_tokens?: boolean
     channel_affinity?: ChannelAffinityInfo
+    upstream_pollution?: UpstreamPollutionInfo
     // Top-up audit fields (type=1, admin only)
     payment_method?: string
     callback_payment_method?: string
