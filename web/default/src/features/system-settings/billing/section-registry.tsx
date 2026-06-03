@@ -72,6 +72,10 @@ const BILLING_SECTIONS = [
               settings['general_setting.upstream_pollution_json_template'] ?? '',
             upstream_pollution_stream_template:
               settings['general_setting.upstream_pollution_stream_template'] ?? '',
+            upstream_failure_json_template:
+              settings['general_setting.upstream_failure_json_template'] ?? '',
+            upstream_failure_stream_template:
+              settings['general_setting.upstream_failure_stream_template'] ?? '',
           },
           quota_setting: {
             enable_free_model_pre_consume:

@@ -37,6 +37,12 @@ type GeneralSetting struct {
 	// 命中污染后,流式响应返回给下游的自定义模板（text/template 语法）。空 = 退回硬编码 SSE error 帧。
 	// 模板需自行包含完整 SSE 帧格式（含 "data: " 前缀、"\n\n" 分隔符、终止 "[DONE]"）。可用变量同上。
 	UpstreamPollutionStreamTemplate string `json:"upstream_pollution_stream_template"`
+	// 上游或渠道故障后,非流式响应返回给下游的自定义模板（text/template 语法）。空 = 保持原错误响应。
+	// 可用变量: {{.Model}} {{.ErrorCode}} {{.StatusCode}} {{.ChannelId}} {{.ChannelName}} {{.RequestId}} {{.Created}} {{.Timestamp}}
+	UpstreamFailureJSONTemplate string `json:"upstream_failure_json_template"`
+	// 上游或渠道故障后,流式响应返回给下游的自定义模板（text/template 语法）。空 = 保持原错误响应。
+	// 模板需自行包含完整 SSE 帧格式。可用变量同上。
+	UpstreamFailureStreamTemplate string `json:"upstream_failure_stream_template"`
 }
 
 // 默认配置
@@ -55,6 +61,8 @@ chatcmpl_local_`,
 	UpstreamPollutionDisableChannel: true,
 	UpstreamPollutionJSONTemplate:   "",
 	UpstreamPollutionStreamTemplate: "",
+	UpstreamFailureJSONTemplate:     "",
+	UpstreamFailureStreamTemplate:   "",
 }
 
 func init() {
@@ -116,6 +124,17 @@ func GetUpstreamPollutionJSONTemplate() string {
 // 注意: 此模板不做 TrimSpace,因为 SSE 帧的换行结构是有语义的
 func GetUpstreamPollutionStreamTemplate() string {
 	return generalSetting.UpstreamPollutionStreamTemplate
+}
+
+// GetUpstreamFailureJSONTemplate 返回非流式上游故障安全响应模板（原样，调用方负责渲染和容错）
+func GetUpstreamFailureJSONTemplate() string {
+	return strings.TrimSpace(generalSetting.UpstreamFailureJSONTemplate)
+}
+
+// GetUpstreamFailureStreamTemplate 返回流式上游故障安全响应模板（原样,调用方负责渲染和容错）
+// 注意: 此模板不做 TrimSpace,因为 SSE 帧的换行结构是有语义的
+func GetUpstreamFailureStreamTemplate() string {
+	return generalSetting.UpstreamFailureStreamTemplate
 }
 
 func sanitizeUpstreamErrorMessage(message string, fallback string) string {

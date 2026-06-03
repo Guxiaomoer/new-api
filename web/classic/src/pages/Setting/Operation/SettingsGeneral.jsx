@@ -63,6 +63,8 @@ export default function GeneralSettings(props) {
     'general_setting.upstream_pollution_disable_channel': true,
     'general_setting.upstream_pollution_json_template': '',
     'general_setting.upstream_pollution_stream_template': '',
+    'general_setting.upstream_failure_json_template': '',
+    'general_setting.upstream_failure_stream_template': '',
     'token_setting.max_user_tokens': 1000,
   });
   const refForm = useRef();
@@ -502,6 +504,64 @@ export default function GeneralSettings(props) {
                   >
                     {t(
                       '命中关键词且请求为流式时，模板渲染结果将以 HTTP 200 + text/event-stream 原样返回给下游',
+                    )}
+                  </Text>
+                </Form.Slot>
+              </Col>
+              <Col span={24}>
+                <Form.Slot label={t('上游故障非流式响应模板')}>
+                  <TextArea
+                    value={
+                      inputs[
+                        'general_setting.upstream_failure_json_template'
+                      ] || ''
+                    }
+                    onChange={(val) =>
+                      handleFieldChange(
+                        'general_setting.upstream_failure_json_template',
+                      )(val)
+                    }
+                    placeholder={t(
+                      '留空则保持原错误响应。上游或渠道故障且重试结束后，返回 HTTP 200 + application/json。示例：{"error":{"message":"休息一下，号池维护中","type":"upstream_maintenance","code":"upstream_maintenance"}}',
+                    )}
+                    autosize={{ minRows: 6, maxRows: 16 }}
+                  />
+                  <Text
+                    type='tertiary'
+                    size='small'
+                    style={{ marginTop: 4, display: 'block' }}
+                  >
+                    {t(
+                      '仅对上游连接失败、渠道不可用、上游异常响应等故障生效；鉴权、余额不足、请求错误、敏感词等本地错误不会被改写。支持变量：{{.Model}} {{.ErrorCode}} {{.StatusCode}} {{.ChannelId}} {{.ChannelName}} {{.RequestId}} {{.Created}} {{.Timestamp}}',
+                    )}
+                  </Text>
+                </Form.Slot>
+              </Col>
+              <Col span={24}>
+                <Form.Slot label={t('上游故障流式响应模板')}>
+                  <TextArea
+                    value={
+                      inputs[
+                        'general_setting.upstream_failure_stream_template'
+                      ] || ''
+                    }
+                    onChange={(val) =>
+                      handleFieldChange(
+                        'general_setting.upstream_failure_stream_template',
+                      )(val)
+                    }
+                    placeholder={t(
+                      '留空则保持原错误响应。模板需包含完整 SSE 帧，例如：data: {"choices":[{"delta":{"content":"休息一下，号池维护中"}}]}\n\ndata: [DONE]\n\n',
+                    )}
+                    autosize={{ minRows: 6, maxRows: 16 }}
+                  />
+                  <Text
+                    type='tertiary'
+                    size='small'
+                    style={{ marginTop: 4, display: 'block' }}
+                  >
+                    {t(
+                      '上游或渠道故障且请求为流式时，模板渲染结果将以 HTTP 200 + text/event-stream 原样返回给下游；管理员日志仍记录真实错误。',
                     )}
                   </Text>
                 </Form.Slot>

@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -243,6 +245,164 @@ func TestRelayErrorHandlerKeepsInvalidJSONBodyInDebugLog(t *testing.T) {
 	require.NotNil(t, newAPIError)
 	require.NotContains(t, logBuffer.String(), "[truncated")
 	require.Contains(t, logBuffer.String(), body)
+}
+
+func TestRenderUpstreamFailureResponse(t *testing.T) {
+	oldJSONTemplate := operation_setting.GetGeneralSetting().UpstreamFailureJSONTemplate
+	oldStreamTemplate := operation_setting.GetGeneralSetting().UpstreamFailureStreamTemplate
+	operation_setting.GetGeneralSetting().UpstreamFailureJSONTemplate = `{"error":{"message":"休息一下，号池维护中","type":"{{.ErrorCode}}","code":"upstream_maintenance"},"model":{{json .Model}}}`
+	operation_setting.GetGeneralSetting().UpstreamFailureStreamTemplate = "data: {\"choices\":[{\"delta\":{\"content\":\"休息一下，号池维护中\"}}]}\n\ndata: [DONE]\n\n"
+	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().UpstreamFailureJSONTemplate = oldJSONTemplate
+		operation_setting.GetGeneralSetting().UpstreamFailureStreamTemplate = oldStreamTemplate
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+	c.Set(string(constant.ContextKeyOriginalModel), "gpt-test")
+	c.Set(string(constant.ContextKeyChannelId), 123)
+	c.Set(string(constant.ContextKeyChannelName), "upstream-a")
+	c.Set(common.RequestIdKey, "req-test")
+
+	newAPIError := types.NewErrorWithStatusCode(
+		errors.New("upstream unavailable"),
+		types.ErrorCodeDoRequestFailed,
+		http.StatusInternalServerError,
+	)
+
+	jsonResult := RenderUpstreamFailureResponse(c, newAPIError, false)
+	require.NotNil(t, jsonResult)
+	require.Contains(t, jsonResult.Rendered, "休息一下，号池维护中")
+	require.Contains(t, jsonResult.Rendered, "do_request_failed")
+	require.Contains(t, jsonResult.Rendered, "gpt-test")
+
+	streamResult := RenderUpstreamFailureResponse(c, newAPIError, true)
+	require.NotNil(t, streamResult)
+	require.Equal(t, operation_setting.GetGeneralSetting().UpstreamFailureStreamTemplate, streamResult.Rendered)
+}
+
+func TestRenderUpstreamFailureResponseInvalidJSONFallback(t *testing.T) {
+	oldJSONTemplate := operation_setting.GetGeneralSetting().UpstreamFailureJSONTemplate
+	operation_setting.GetGeneralSetting().UpstreamFailureJSONTemplate = `not-json`
+	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().UpstreamFailureJSONTemplate = oldJSONTemplate
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+	newAPIError := types.NewErrorWithStatusCode(
+		errors.New("upstream bad response"),
+		types.ErrorCodeBadResponse,
+		http.StatusBadGateway,
+	)
+
+	result := RenderUpstreamFailureResponse(c, newAPIError, false)
+	require.Nil(t, result)
+}
+
+func TestIsUpstreamFailureError(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		err      *types.NewAPIError
+		expected bool
+	}{
+		{
+			name:     "do request failed",
+			err:      types.NewError(errors.New("connect failed"), types.ErrorCodeDoRequestFailed),
+			expected: true,
+		},
+		{
+			name:     "get channel failed",
+			err:      types.NewError(errors.New("no channel"), types.ErrorCodeGetChannelFailed),
+			expected: true,
+		},
+		{
+			name:     "bad upstream status code",
+			err:      types.NewErrorWithStatusCode(errors.New("bad status"), types.ErrorCodeBadResponseStatusCode, http.StatusBadGateway),
+			expected: true,
+		},
+		{
+			name:     "bad upstream response",
+			err:      types.NewError(errors.New("bad response"), types.ErrorCodeBadResponse),
+			expected: true,
+		},
+		{
+			name:     "bad upstream body",
+			err:      types.NewError(errors.New("bad body"), types.ErrorCodeBadResponseBody),
+			expected: true,
+		},
+		{
+			name:     "read upstream body failed",
+			err:      types.NewError(errors.New("read body failed"), types.ErrorCodeReadResponseBodyFailed),
+			expected: true,
+		},
+		{
+			name:     "generic 5xx upstream-like OpenAI error",
+			err:      types.NewOpenAIError(errors.New("server error"), types.ErrorCode("server_error"), http.StatusInternalServerError),
+			expected: true,
+		},
+		{
+			name:     "channel operational no available key",
+			err:      types.NewError(errors.New("no available key"), types.ErrorCodeChannelNoAvailableKey),
+			expected: true,
+		},
+		{
+			name:     "channel operational invalid key",
+			err:      types.NewError(errors.New("invalid key"), types.ErrorCodeChannelInvalidKey),
+			expected: true,
+		},
+		{
+			name:     "channel operational response timeout",
+			err:      types.NewOpenAIError(errors.New("timeout"), types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout),
+			expected: true,
+		},
+		{
+			name:     "channel config param override invalid",
+			err:      types.NewError(errors.New("bad param override"), types.ErrorCodeChannelParamOverrideInvalid),
+			expected: false,
+		},
+		{
+			name:     "channel config header override invalid",
+			err:      types.NewError(errors.New("bad header override"), types.ErrorCodeChannelHeaderOverrideInvalid),
+			expected: false,
+		},
+		{
+			name:     "channel config model mapped error",
+			err:      types.NewError(errors.New("model mapped error"), types.ErrorCodeChannelModelMappedError),
+			expected: false,
+		},
+		{
+			name:     "generic channel error code is not auto allowed",
+			err:      types.NewError(errors.New("channel disabled"), types.ErrorCode("channel:disabled")),
+			expected: false,
+		},
+		{
+			name:     "invalid local request",
+			err:      types.NewErrorWithStatusCode(errors.New("invalid request"), types.ErrorCodeInvalidRequest, http.StatusBadRequest),
+			expected: false,
+		},
+		{
+			name:     "sensitive words local error",
+			err:      types.NewErrorWithStatusCode(errors.New("sensitive"), types.ErrorCodeSensitiveWordsDetected, http.StatusBadRequest),
+			expected: false,
+		},
+		{
+			name:     "read request body local error",
+			err:      types.NewErrorWithStatusCode(errors.New("too large"), types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge),
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tc.expected, IsUpstreamFailureError(tc.err))
+		})
+	}
 }
 
 func withDebugEnabled(t *testing.T, enabled bool) {

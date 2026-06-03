@@ -61,6 +61,8 @@ const quotaSchema = z.object({
     upstream_pollution_disable_channel: z.boolean(),
     upstream_pollution_json_template: z.string(),
     upstream_pollution_stream_template: z.string(),
+    upstream_failure_json_template: z.string(),
+    upstream_failure_stream_template: z.string(),
   }),
   quota_setting: z.object({
     enable_free_model_pre_consume: z.boolean(),
@@ -80,6 +82,8 @@ type FlatQuotaSettings = {
   'general_setting.upstream_pollution_disable_channel': boolean
   'general_setting.upstream_pollution_json_template': string
   'general_setting.upstream_pollution_stream_template': string
+  'general_setting.upstream_failure_json_template': string
+  'general_setting.upstream_failure_stream_template': string
   'quota_setting.enable_free_model_pre_consume': boolean
 }
 
@@ -100,6 +104,10 @@ const flattenQuotaValues = (
     values.general_setting.upstream_pollution_json_template,
   'general_setting.upstream_pollution_stream_template':
     values.general_setting.upstream_pollution_stream_template,
+  'general_setting.upstream_failure_json_template':
+    values.general_setting.upstream_failure_json_template,
+  'general_setting.upstream_failure_stream_template':
+    values.general_setting.upstream_failure_stream_template,
   'quota_setting.enable_free_model_pre_consume':
     values.quota_setting.enable_free_model_pre_consume,
 })
@@ -478,6 +486,72 @@ export function QuotaSettingsSection({
                     <FormDescription>
                       {t(
                         'When a stream response matches a keyword, the rendered template is returned to downstream clients as HTTP 200 text/event-stream without further modification.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='general_setting.upstream_failure_json_template'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {t('Upstream failure non-stream response template')}
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={8}
+                        placeholder={t(
+                          'Empty keeps the original error response. After upstream/channel retries are exhausted, return HTTP 200 application/json. Example: {"error":{"message":"休息一下，号池维护中","type":"upstream_maintenance","code":"upstream_maintenance"}}'
+                        )}
+                        value={field.value ?? ''}
+                        onChange={(event) => field.onChange(event.target.value)}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Only applies to upstream connection failures, unavailable channels, and bad upstream responses. Local authentication, quota, invalid request, and sensitive-word errors are not rewritten. Variables: {{.Model}} {{.ErrorCode}} {{.StatusCode}} {{.ChannelId}} {{.ChannelName}} {{.RequestId}} {{.Created}} {{.Timestamp}}.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='general_setting.upstream_failure_stream_template'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {t('Upstream failure stream response template')}
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={8}
+                        placeholder={t(
+                          'Empty keeps the original error response. The template must include complete SSE frames, for example: data: {"choices":[{"delta":{"content":"休息一下，号池维护中"}}]}\n\ndata: [DONE]\n\n'
+                        )}
+                        value={field.value ?? ''}
+                        onChange={(event) => field.onChange(event.target.value)}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'When an upstream/channel failure happens for a stream request, the rendered template is returned as HTTP 200 text/event-stream. Admin logs still keep the real error.'
                       )}
                     </FormDescription>
                     <FormMessage />

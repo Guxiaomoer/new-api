@@ -90,6 +90,13 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			if relayFormat != types.RelayFormatOpenAIRealtime && !c.Writer.Written() {
+				isStream := common.GetContextKeyBool(c, constant.ContextKeyIsStream)
+				if rendered := service.RenderUpstreamFailureResponse(c, newAPIError, isStream); rendered != nil {
+					writeUpstreamFailureResponse(c, rendered.Rendered, isStream)
+					return
+				}
+			}
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
@@ -245,6 +252,19 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+func writeUpstreamFailureResponse(c *gin.Context, rendered string, isStream bool) {
+	headers := c.Writer.Header()
+	headers.Del("Content-Length")
+	headers.Del("Content-Encoding")
+	if isStream {
+		headers.Set("Content-Type", "text/event-stream; charset=utf-8")
+		c.String(http.StatusOK, rendered)
+		return
+	}
+	headers.Set("Content-Type", "application/json; charset=utf-8")
+	c.String(http.StatusOK, rendered)
 }
 
 var upgrader = websocket.Upgrader{

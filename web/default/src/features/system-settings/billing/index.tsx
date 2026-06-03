@@ -35,6 +35,8 @@ const defaultBillingSettings: BillingSettings = {
   'general_setting.upstream_pollution_disable_channel': true,
   'general_setting.upstream_pollution_json_template': '',
   'general_setting.upstream_pollution_stream_template': '',
+  'general_setting.upstream_failure_json_template': '',
+  'general_setting.upstream_failure_stream_template': '',
   'quota_setting.enable_free_model_pre_consume': true,
   QuotaPerUnit: 500000,
   USDExchangeRate: 7,

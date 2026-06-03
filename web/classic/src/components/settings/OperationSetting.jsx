@@ -53,6 +53,8 @@ const OperationSetting = () => {
     'general_setting.upstream_pollution_disable_channel': true,
     'general_setting.upstream_pollution_json_template': '',
     'general_setting.upstream_pollution_stream_template': '',
+    'general_setting.upstream_failure_json_template': '',
+    'general_setting.upstream_failure_stream_template': '',
 
     /* 顶栏模块管理 */
     HeaderNavModules: '',
