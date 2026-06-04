@@ -22,13 +22,16 @@ func withGlobalMaintenanceSettings(t *testing.T, enabled bool, jsonTemplate stri
 	require.NoError(t, i18n.Init())
 
 	oldEnabled := operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled
+	oldMessage := operation_setting.GetGeneralSetting().GlobalMaintenanceMessage
 	oldJSONTemplate := operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate
 	oldStreamTemplate := operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate
 	operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = enabled
+	operation_setting.GetGeneralSetting().GlobalMaintenanceMessage = ""
 	operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate = jsonTemplate
 	operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = streamTemplate
 	t.Cleanup(func() {
 		operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = oldEnabled
+		operation_setting.GetGeneralSetting().GlobalMaintenanceMessage = oldMessage
 		operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate = oldJSONTemplate
 		operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = oldStreamTemplate
 	})

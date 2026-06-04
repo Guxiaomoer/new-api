@@ -23,6 +23,8 @@ import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
 import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
+import { MaintenanceResponseSection } from './maintenance-response-section'
+import { ResponseFilterSection } from './response-filter-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
@@ -59,6 +61,46 @@ const OPERATIONS_SECTIONS = [
             settings['monitor_setting.auto_test_channel_enabled'],
           'monitor_setting.auto_test_channel_minutes':
             settings['monitor_setting.auto_test_channel_minutes'],
+        }}
+      />
+    ),
+  },
+  {
+    id: 'response-filter',
+    titleKey: 'Upstream Response Filter',
+    build: (settings: OperationsSettings) => (
+      <ResponseFilterSection
+        defaultValues={{
+          'general_setting.upstream_pollution_keywords':
+            settings['general_setting.upstream_pollution_keywords'] ?? '',
+          'general_setting.upstream_pollution_disable_channel':
+            settings['general_setting.upstream_pollution_disable_channel'] ?? true,
+          'general_setting.upstream_pollution_json_template':
+            settings['general_setting.upstream_pollution_json_template'] ?? '',
+          'general_setting.upstream_pollution_stream_template':
+            settings['general_setting.upstream_pollution_stream_template'] ?? '',
+          'general_setting.upstream_failure_json_template':
+            settings['general_setting.upstream_failure_json_template'] ?? '',
+          'general_setting.upstream_failure_stream_template':
+            settings['general_setting.upstream_failure_stream_template'] ?? '',
+        }}
+      />
+    ),
+  },
+  {
+    id: 'maintenance-response',
+    titleKey: 'Maintenance Response',
+    build: (settings: OperationsSettings) => (
+      <MaintenanceResponseSection
+        defaultValues={{
+          'general_setting.global_maintenance_enabled':
+            settings['general_setting.global_maintenance_enabled'] ?? false,
+          'general_setting.global_maintenance_message':
+            settings['general_setting.global_maintenance_message'] ?? '',
+          'general_setting.global_maintenance_json_template':
+            settings['general_setting.global_maintenance_json_template'] ?? '',
+          'general_setting.global_maintenance_stream_template':
+            settings['general_setting.global_maintenance_stream_template'] ?? '',
         }}
       />
     ),

@@ -195,6 +195,9 @@ export const channelFormSchema = z
     allow_inference_geo: z.boolean().optional(), // OpenAI/Anthropic: inference geography
     allow_speed: z.boolean().optional(), // Anthropic: speed mode control
     claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
+    // Channel maintenance response (stored in settings JSON)
+    channel_maintenance_enabled: z.boolean().optional(),
+    channel_maintenance_message: z.string().optional(),
     // Upstream model update settings (stored in settings JSON)
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -313,6 +316,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_inference_geo: false,
   allow_speed: false,
   claude_beta_query: false,
+  channel_maintenance_enabled: false,
+  channel_maintenance_message: '',
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -367,6 +372,8 @@ export function transformChannelToFormDefaults(
   let allowInferenceGeo = false
   let allowSpeed = false
   let claudeBetaQuery = false
+  let channelMaintenanceEnabled = false
+  let channelMaintenanceMessage = ''
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
@@ -385,6 +392,8 @@ export function transformChannelToFormDefaults(
       allowInferenceGeo = parsed.allow_inference_geo === true
       allowSpeed = parsed.allow_speed === true
       claudeBetaQuery = parsed.claude_beta_query === true
+      channelMaintenanceEnabled = parsed.channel_maintenance_enabled === true
+      channelMaintenanceMessage = parsed.channel_maintenance_message || ''
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
       upstreamModelUpdateAutoSyncEnabled =
@@ -439,6 +448,8 @@ export function transformChannelToFormDefaults(
     allow_inference_geo: allowInferenceGeo,
     allow_speed: allowSpeed,
     claude_beta_query: claudeBetaQuery,
+    channel_maintenance_enabled: channelMaintenanceEnabled,
+    channel_maintenance_message: channelMaintenanceMessage,
     allow_safety_identifier: allowSafetyIdentifier,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
@@ -539,6 +550,16 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   } else {
     if ('allow_speed' in settingsObj) delete settingsObj.allow_speed
     if ('claude_beta_query' in settingsObj) delete settingsObj.claude_beta_query
+  }
+
+  // Per-channel maintenance response settings
+  settingsObj.channel_maintenance_enabled =
+    formData.channel_maintenance_enabled === true
+  if (formData.channel_maintenance_enabled === true) {
+    settingsObj.channel_maintenance_message =
+      formData.channel_maintenance_message || ''
+  } else if ('channel_maintenance_message' in settingsObj) {
+    delete settingsObj.channel_maintenance_message
   }
 
   // Upstream model update settings (for model-fetchable channel types)

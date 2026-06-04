@@ -135,3 +135,54 @@ For request structs that are parsed from client JSON and then re-marshaled to up
 ### Rule 7: Billing Expression System — Read `pkg/billingexpr/expr.md`
 
 When working on tiered/dynamic billing (expression-based pricing), you MUST read `pkg/billingexpr/expr.md` first. It documents the design philosophy, expression language (variables, functions, examples), full system architecture (editor → storage → pre-consume → settlement → log display), token normalization rules (`p`/`c` auto-exclusion), quota conversion, and expression versioning. All code changes to the billing expression system must follow the patterns described in that document.
+
+## Deploy Configuration
+
+- **Remote repository**: `https://github.com/Guxiaomoer/new-api`
+- **Release target branch**: `main` on `origin`
+- **Build trigger**: pushing to `origin/main` triggers GitHub Actions automatically.
+- **GHCR image**: `ghcr.io/guxiaomoer/new-api:latest`
+- **Expected build time**: about 5-10 minutes.
+
+### Release Workflow
+
+1. Confirm current changes:
+   ```bash
+   git status
+   git diff
+   ```
+2. Commit locally:
+   ```bash
+   git add .
+   git commit -m "feat: 功能描述"
+   ```
+3. Push to the user's main branch:
+   ```bash
+   git push origin main
+   ```
+4. Wait for GitHub Actions on `main` to complete successfully. If `gh` is unavailable, check with:
+   ```bash
+   curl -s "https://api.github.com/repos/Guxiaomoer/new-api/actions/runs?branch=main&per_page=1" | grep -E '"(id|status|conclusion)"'
+   ```
+5. Update the server container manually unless auto-deploy is configured:
+   ```bash
+   ssh root@你的服务器IP
+   cd /opt/newapi
+   docker-compose pull
+   docker-compose down
+   docker-compose up -d
+   docker ps | grep newapi
+   ```
+6. Verify deployment:
+   ```bash
+   curl -I https://api.guxiaomo.site/
+   curl -I https://guxiaomo.site/
+   ```
+
+### Server Runtime Notes
+
+- **Container name**: `newapi`
+- **Docker Compose directory**: `/opt/newapi`
+- **Compose image**: `ghcr.io/guxiaomoer/new-api:latest`
+- `latest` is overwritten by every successful `origin/main` build.
+- Do not remove or rename protected project identifiers: `new-api`, `QuantumNous`.

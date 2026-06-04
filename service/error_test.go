@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -327,6 +328,72 @@ func TestRenderGlobalMaintenanceResponse(t *testing.T) {
 	streamResult := RenderGlobalMaintenanceResponse(c, true)
 	require.NotNil(t, streamResult)
 	require.Equal(t, operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate, streamResult.Rendered)
+}
+
+func TestRenderPlainMaintenanceResponseAnthropicNonStream(t *testing.T) {
+	oldEnabled := operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled
+	oldMessage := operation_setting.GetGeneralSetting().GlobalMaintenanceMessage
+	operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = true
+	operation_setting.GetGeneralSetting().GlobalMaintenanceMessage = `休息一下，号池维护中 {{.Model}} "quoted"`
+	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = oldEnabled
+		operation_setting.GetGeneralSetting().GlobalMaintenanceMessage = oldMessage
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-test"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(string(constant.ContextKeyOriginalModel), "claude-test")
+
+	result := RenderGlobalMaintenanceResponse(c, false)
+	require.NotNil(t, result)
+	require.Contains(t, result.Rendered, `"type":"message"`)
+	require.Contains(t, result.Rendered, `"role":"assistant"`)
+	require.Contains(t, result.Rendered, `休息一下，号池维护中 {{.Model}}`)
+	require.Contains(t, result.Rendered, `\"quoted\"`)
+	require.NotContains(t, result.Rendered, `chat.completion`)
+}
+
+func TestRenderPlainMaintenanceResponseOpenAIStreamEscapesSSE(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"gpt-test","stream":true}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(string(constant.ContextKeyOriginalModel), "gpt-test")
+
+	result := RenderPlainMaintenanceResponse(c, true, "line1\n\ndata: injected\n[DONE]", constant.ChannelTypeOpenAI)
+	require.NotNil(t, result)
+	require.Contains(t, result.Rendered, "data:")
+	require.Contains(t, result.Rendered, "data: [DONE]")
+	require.Contains(t, result.Rendered, `line1\n\ndata: injected\n[DONE]`)
+	require.Equal(t, 2, strings.Count(result.Rendered, "data: "))
+}
+
+func TestRenderPlainMaintenanceResponseGeminiNonStream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-test:generateContent", nil)
+
+	result := RenderPlainMaintenanceResponse(c, false, "休息一下，号池维护中", constant.ChannelTypeGemini)
+	require.NotNil(t, result)
+	require.Contains(t, result.Rendered, `"candidates"`)
+	require.Contains(t, result.Rendered, `"finishReason":"STOP"`)
+	require.Contains(t, result.Rendered, `休息一下，号池维护中`)
+}
+
+func TestRenderPlainMaintenanceResponseAnthropicStream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Set(string(constant.ContextKeyOriginalModel), "claude-test")
+
+	result := RenderPlainMaintenanceResponse(c, true, "休息一下，号池维护中", constant.ChannelTypeAnthropic)
+	require.NotNil(t, result)
+	require.Contains(t, result.Rendered, "event: message_start")
+	require.Contains(t, result.Rendered, "event: content_block_delta")
+	require.Contains(t, result.Rendered, "event: message_stop")
+	require.Contains(t, result.Rendered, `休息一下，号池维护中`)
 }
 
 func TestRenderGlobalMaintenanceResponseDisabled(t *testing.T) {

@@ -218,6 +218,8 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
+    values.channel_maintenance_enabled ||
+    values.channel_maintenance_message?.trim() ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
@@ -2883,6 +2885,61 @@ export function ChannelMutateDrawer({
                         title={t('Channel Extra Settings')}
                         icon={<Settings className='h-4 w-4' />}
                       />
+                      <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
+                        <SubHeading
+                          title={t('Channel maintenance response')}
+                          icon={<Wand2 className='h-3.5 w-3.5' />}
+                        />
+                        <div className='divide-border space-y-0 divide-y border-y'>
+                          <FormField
+                            control={form.control}
+                            name='channel_maintenance_enabled'
+                            render={({ field }) => (
+                              <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                <div className='space-y-0.5'>
+                                  <FormLabel className='text-sm'>
+                                    {t('Enable maintenance for this channel')}
+                                  </FormLabel>
+                                  <FormDescription>
+                                    {t(
+                                      'When enabled, requests routed to this channel return HTTP 200 with the maintenance message and will not call upstream.'
+                                    )}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <FormField
+                          control={form.control}
+                          name='channel_maintenance_message'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Maintenance message')}</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder={t('休息一下，号池维护中')}
+                                  rows={3}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t(
+                                  'Enter plain text only. The backend automatically wraps it for Claude, OpenAI, Gemini, stream, and non-stream requests.'
+                                )}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
                       {(currentType === 1 || currentType === 14) && (
                         <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                           <SubHeading

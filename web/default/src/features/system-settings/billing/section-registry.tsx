@@ -64,24 +64,6 @@ const BILLING_SECTIONS = [
           TopUpLink: settings.TopUpLink,
           general_setting: {
             docs_link: settings['general_setting.docs_link'],
-            upstream_pollution_keywords:
-              settings['general_setting.upstream_pollution_keywords'],
-            upstream_pollution_disable_channel:
-              settings['general_setting.upstream_pollution_disable_channel'],
-            upstream_pollution_json_template:
-              settings['general_setting.upstream_pollution_json_template'] ?? '',
-            upstream_pollution_stream_template:
-              settings['general_setting.upstream_pollution_stream_template'] ?? '',
-            upstream_failure_json_template:
-              settings['general_setting.upstream_failure_json_template'] ?? '',
-            upstream_failure_stream_template:
-              settings['general_setting.upstream_failure_stream_template'] ?? '',
-            global_maintenance_enabled:
-              settings['general_setting.global_maintenance_enabled'] ?? false,
-            global_maintenance_json_template:
-              settings['general_setting.global_maintenance_json_template'] ?? '',
-            global_maintenance_stream_template:
-              settings['general_setting.global_maintenance_stream_template'] ?? '',
           },
           quota_setting: {
             enable_free_model_pre_consume:

@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -136,10 +137,15 @@ func RenderUpstreamFailureResponse(c *gin.Context, newAPIError *types.NewAPIErro
 
 // RenderGlobalMaintenanceResponse 根据全局维护模式开关和 isStream 选择模板并渲染。
 // - 维护开关关闭 → 返回 nil（调用方继续正常 relay）
-// - 模板为空、解析/渲染出错或非流式 JSON 无效 → 返回内置安全维护响应（fail closed）
+// - 配置简易纯文本消息 → 自动包装成当前协议兼容的 JSON/SSE 响应
+// - 模板为空、解析/渲染出错或非流式 JSON 无效 → 使用配置中的维护提示兜底
 func RenderGlobalMaintenanceResponse(c *gin.Context, isStream bool) *PollutionRenderResult {
 	if !operation_setting.IsGlobalMaintenanceEnabled() {
 		return nil
+	}
+
+	if message := operation_setting.GetGlobalMaintenanceMessage(); message != "" {
+		return RenderPlainMaintenanceResponse(c, isStream, message, 0)
 	}
 
 	var tmplText string
@@ -184,14 +190,236 @@ func RenderGlobalMaintenanceResponse(c *gin.Context, isStream bool) *PollutionRe
 }
 
 func defaultGlobalMaintenanceResponse(isStream bool) *PollutionRenderResult {
+	return RenderPlainMaintenanceResponse(nil, isStream, operation_setting.GetGlobalMaintenanceMessage(), 0)
+}
+
+// RenderPlainMaintenanceResponse 将后台配置的一句纯文本维护提示自动包装为协议兼容响应。
+// message 按普通字符串处理，不执行模板，避免 JSON/SSE 注入。
+func RenderPlainMaintenanceResponse(c *gin.Context, isStream bool, message string, channelType int) *PollutionRenderResult {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return nil
+	}
+	if isAnthropicMaintenanceRequest(c, channelType) {
+		if isStream {
+			return renderAnthropicMaintenanceStream(c, message)
+		}
+		return renderAnthropicMaintenanceJSON(c, message)
+	}
+	if isGeminiMaintenanceRequest(c, channelType) {
+		if isStream {
+			return renderGeminiMaintenanceStream(message)
+		}
+		return renderGeminiMaintenanceJSON(message)
+	}
 	if isStream {
-		return &PollutionRenderResult{
-			Rendered: "data: {\"choices\":[{\"delta\":{\"content\":\"休息一下，号池维护中\"}}]}\n\ndata: [DONE]\n\n",
+		return renderOpenAIMaintenanceStream(c, message)
+	}
+	return renderOpenAIMaintenanceJSON(c, message)
+}
+
+func isAnthropicMaintenanceRequest(c *gin.Context, channelType int) bool {
+	if channelType == constant.ChannelTypeAnthropic || channelType == constant.ChannelTypeAws {
+		return true
+	}
+	if c == nil || c.Request == nil {
+		return false
+	}
+	return strings.HasPrefix(c.Request.URL.Path, "/v1/messages")
+}
+
+func isGeminiMaintenanceRequest(c *gin.Context, channelType int) bool {
+	if channelType == constant.ChannelTypeGemini || channelType == constant.ChannelTypeVertexAi {
+		return true
+	}
+	if c == nil || c.Request == nil {
+		return false
+	}
+	if relayMode, ok := c.Get("relay_mode"); ok {
+		if mode, ok := relayMode.(int); ok && mode == relayconstant.RelayModeGemini {
+			return true
 		}
 	}
-	return &PollutionRenderResult{
-		Rendered: `{"error":{"message":"休息一下，号池维护中","type":"maintenance","code":"maintenance"}}`,
+	return strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/")
+}
+
+func maintenanceModel(c *gin.Context) string {
+	model := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+	if model == "" {
+		return "maintenance"
 	}
+	return model
+}
+
+func maintenanceRequestID(c *gin.Context, fallbackPrefix string) string {
+	if c != nil {
+		if requestID := c.GetString(common.RequestIdKey); requestID != "" {
+			return requestID
+		}
+	}
+	return fallbackPrefix + "_maintenance"
+}
+
+func renderOpenAIMaintenanceJSON(c *gin.Context, message string) *PollutionRenderResult {
+	now := time.Now().Unix()
+	payload := map[string]any{
+		"id":      maintenanceRequestID(c, "chatcmpl"),
+		"object":  "chat.completion",
+		"created": now,
+		"model":   maintenanceModel(c),
+		"choices": []map[string]any{{
+			"index": 0,
+			"message": map[string]any{
+				"role":    "assistant",
+				"content": message,
+			},
+			"finish_reason": "stop",
+		}},
+		"usage": map[string]any{
+			"prompt_tokens":     0,
+			"completion_tokens": 0,
+			"total_tokens":      0,
+		},
+	}
+	return marshalMaintenancePayload(payload)
+}
+
+func renderOpenAIMaintenanceStream(c *gin.Context, message string) *PollutionRenderResult {
+	now := time.Now().Unix()
+	chunk := map[string]any{
+		"id":      maintenanceRequestID(c, "chatcmpl"),
+		"object":  "chat.completion.chunk",
+		"created": now,
+		"model":   maintenanceModel(c),
+		"choices": []map[string]any{{
+			"index": 0,
+			"delta": map[string]any{
+				"role":    "assistant",
+				"content": message,
+			},
+			"finish_reason": "stop",
+		}},
+	}
+	return marshalMaintenanceSSE([]any{chunk}, true)
+}
+
+func renderAnthropicMaintenanceJSON(c *gin.Context, message string) *PollutionRenderResult {
+	payload := map[string]any{
+		"id":    maintenanceRequestID(c, "msg"),
+		"type":  "message",
+		"role":  "assistant",
+		"model": maintenanceModel(c),
+		"content": []map[string]any{{
+			"type": "text",
+			"text": message,
+		}},
+		"stop_reason":   "end_turn",
+		"stop_sequence": nil,
+		"usage": map[string]any{
+			"input_tokens":  0,
+			"output_tokens": 0,
+		},
+	}
+	return marshalMaintenancePayload(payload)
+}
+
+func renderAnthropicMaintenanceStream(c *gin.Context, message string) *PollutionRenderResult {
+	messageStart := map[string]any{
+		"type": "message_start",
+		"message": map[string]any{
+			"id":              maintenanceRequestID(c, "msg"),
+			"type":            "message",
+			"role":            "assistant",
+			"model":           maintenanceModel(c),
+			"content":         []any{},
+			"stop_reason":     nil,
+			"stop_sequence":   nil,
+			"usage":           map[string]any{"input_tokens": 0, "output_tokens": 0},
+		},
+	}
+	events := []struct {
+		name string
+		data any
+	}{
+		{"message_start", messageStart},
+		{"content_block_start", map[string]any{"type": "content_block_start", "index": 0, "content_block": map[string]any{"type": "text", "text": ""}}},
+		{"content_block_delta", map[string]any{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "text_delta", "text": message}}},
+		{"content_block_stop", map[string]any{"type": "content_block_stop", "index": 0}},
+		{"message_delta", map[string]any{"type": "message_delta", "delta": map[string]any{"stop_reason": "end_turn", "stop_sequence": nil}, "usage": map[string]any{"output_tokens": 0}}},
+		{"message_stop", map[string]any{"type": "message_stop"}},
+	}
+	var builder strings.Builder
+	for _, event := range events {
+		data, err := common.Marshal(event.data)
+		if err != nil {
+			return nil
+		}
+		builder.WriteString("event: ")
+		builder.WriteString(event.name)
+		builder.WriteString("\n")
+		builder.WriteString("data: ")
+		builder.Write(data)
+		builder.WriteString("\n\n")
+	}
+	return &PollutionRenderResult{Rendered: builder.String()}
+}
+
+func renderGeminiMaintenanceJSON(message string) *PollutionRenderResult {
+	payload := map[string]any{
+		"candidates": []map[string]any{{
+			"content": map[string]any{
+				"parts": []map[string]any{{"text": message}},
+				"role":  "model",
+			},
+			"finishReason": "STOP",
+			"index":        0,
+		}},
+		"usageMetadata": map[string]any{
+			"promptTokenCount":     0,
+			"candidatesTokenCount": 0,
+			"totalTokenCount":      0,
+		},
+	}
+	return marshalMaintenancePayload(payload)
+}
+
+func renderGeminiMaintenanceStream(message string) *PollutionRenderResult {
+	chunk := map[string]any{
+		"candidates": []map[string]any{{
+			"content": map[string]any{
+				"parts": []map[string]any{{"text": message}},
+				"role":  "model",
+			},
+			"finishReason": "STOP",
+			"index":        0,
+		}},
+	}
+	return marshalMaintenanceSSE([]any{chunk}, false)
+}
+
+func marshalMaintenancePayload(payload any) *PollutionRenderResult {
+	data, err := common.Marshal(payload)
+	if err != nil {
+		return nil
+	}
+	return &PollutionRenderResult{Rendered: string(data)}
+}
+
+func marshalMaintenanceSSE(frames []any, includeDone bool) *PollutionRenderResult {
+	var builder strings.Builder
+	for _, frame := range frames {
+		data, err := common.Marshal(frame)
+		if err != nil {
+			return nil
+		}
+		builder.WriteString("data: ")
+		builder.Write(data)
+		builder.WriteString("\n\n")
+	}
+	if includeDone {
+		builder.WriteString("data: [DONE]\n\n")
+	}
+	return &PollutionRenderResult{Rendered: builder.String()}
 }
 
 // IsUpstreamFailureError 判断错误是否属于可对下游隐藏的上游/渠道故障。

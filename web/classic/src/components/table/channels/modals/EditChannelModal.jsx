@@ -210,6 +210,8 @@ const EditChannelModal = (props) => {
     allow_inference_geo: false,
     allow_speed: false,
     claude_beta_query: false,
+    channel_maintenance_enabled: false,
+    channel_maintenance_message: '',
     upstream_model_update_check_enabled: false,
     upstream_model_update_auto_sync_enabled: false,
     upstream_model_update_last_check_time: 0,
@@ -911,6 +913,10 @@ const EditChannelModal = (props) => {
             parsedSettings.allow_inference_geo || false;
           data.allow_speed = parsedSettings.allow_speed || false;
           data.claude_beta_query = parsedSettings.claude_beta_query || false;
+          data.channel_maintenance_enabled =
+            parsedSettings.channel_maintenance_enabled === true;
+          data.channel_maintenance_message =
+            parsedSettings.channel_maintenance_message || '';
           data.upstream_model_update_check_enabled =
             parsedSettings.upstream_model_update_check_enabled === true;
           data.upstream_model_update_auto_sync_enabled =
@@ -941,6 +947,8 @@ const EditChannelModal = (props) => {
           data.allow_inference_geo = false;
           data.allow_speed = false;
           data.claude_beta_query = false;
+          data.channel_maintenance_enabled = false;
+          data.channel_maintenance_message = '';
           data.upstream_model_update_check_enabled = false;
           data.upstream_model_update_auto_sync_enabled = false;
           data.upstream_model_update_last_check_time = 0;
@@ -1036,6 +1044,8 @@ const EditChannelModal = (props) => {
         data.thinking_to_content ||
         data.pass_through_body_enabled ||
         data.force_format ||
+        data.channel_maintenance_enabled ||
+        (data.channel_maintenance_message && data.channel_maintenance_message.trim()) ||
         data.claude_beta_query ||
         data.system_prompt_override;
       if (hasAdvancedValues) {
@@ -1803,6 +1813,15 @@ const EditChannelModal = (props) => {
       }
     }
 
+    settings.channel_maintenance_enabled =
+      localInputs.channel_maintenance_enabled === true;
+    if (localInputs.channel_maintenance_enabled === true) {
+      settings.channel_maintenance_message =
+        localInputs.channel_maintenance_message || '';
+    } else if ('channel_maintenance_message' in settings) {
+      delete settings.channel_maintenance_message;
+    }
+
     settings.upstream_model_update_check_enabled =
       localInputs.upstream_model_update_check_enabled === true;
     settings.upstream_model_update_auto_sync_enabled =
@@ -1848,6 +1867,8 @@ const EditChannelModal = (props) => {
     delete localInputs.allow_inference_geo;
     delete localInputs.allow_speed;
     delete localInputs.claude_beta_query;
+    delete localInputs.channel_maintenance_enabled;
+    delete localInputs.channel_maintenance_message;
     delete localInputs.upstream_model_update_check_enabled;
     delete localInputs.upstream_model_update_auto_sync_enabled;
     delete localInputs.upstream_model_update_last_check_time;
@@ -2211,6 +2232,40 @@ const EditChannelModal = (props) => {
           {() => {
             const advancedSettingsContent = (
               <div className='space-y-4'>
+                <div className='pb-3 border-b border-gray-100'>
+                  <Text className='text-sm font-medium text-gray-500 mb-3 block'>
+                    {t('渠道维护响应')}
+                  </Text>
+                  <Form.Switch
+                    field='channel_maintenance_enabled'
+                    label={t('启用当前渠道维护响应')}
+                    checkedText={t('开')}
+                    uncheckedText={t('关')}
+                    onChange={(value) =>
+                      handleChannelOtherSettingsChange(
+                        'channel_maintenance_enabled',
+                        value,
+                      )
+                    }
+                    extraText={t(
+                      '开启后，路由到该渠道的请求将直接返回 HTTP 200 维护提示，不会请求上游。',
+                    )}
+                  />
+                  <Form.TextArea
+                    field='channel_maintenance_message'
+                    label={t('维护提示内容')}
+                    placeholder={t('休息一下，号池维护中')}
+                    autosize
+                    onChange={(value) =>
+                      handleInputChange('channel_maintenance_message', value)
+                    }
+                    extraText={t(
+                      '只需要填写纯文本，后端会自动适配 Claude、OpenAI、Gemini、流式和非流式响应。',
+                    )}
+                    showClear
+                  />
+                </div>
+
                 {/* Upstream Model Management Section */}
                 {MODEL_FETCHABLE_CHANNEL_TYPES.has(inputs.type) && (
                 <div className='pb-3 border-b border-gray-100'>

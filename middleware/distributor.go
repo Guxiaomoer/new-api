@@ -182,6 +182,9 @@ func Distribute() func(c *gin.Context) {
 			}
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
+		if writeChannelMaintenanceResponse(c, channel, modelRequest) {
+			return
+		}
 		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
@@ -583,6 +586,52 @@ func bestEffortGlobalMaintenanceURLEncodedFields(c *gin.Context) globalMaintenan
 	return fields
 }
 
+func writeChannelMaintenanceResponse(c *gin.Context, channel *model.Channel, modelRequest *ModelRequest) bool {
+	if c == nil || c.Request == nil || channel == nil {
+		return false
+	}
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/realtime") {
+		return false
+	}
+	settings := channel.GetOtherSettings()
+	if !settings.ChannelMaintenanceEnabled {
+		return false
+	}
+	message := strings.TrimSpace(settings.ChannelMaintenanceMessage)
+	if message == "" {
+		message = operation_setting.GetGlobalMaintenanceMessage()
+	}
+	if modelRequest != nil {
+		common.SetContextKey(c, constant.ContextKeyOriginalModel, modelRequest.Model)
+	}
+	common.SetContextKey(c, constant.ContextKeyChannelId, channel.Id)
+	common.SetContextKey(c, constant.ContextKeyChannelName, channel.Name)
+	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
+	isStream := isGlobalMaintenanceStreamRequest(c)
+	common.SetContextKey(c, constant.ContextKeyIsStream, isStream)
+	rendered := service.RenderPlainMaintenanceResponse(c, isStream, message, channel.Type)
+	if rendered == nil {
+		return false
+	}
+	writeMaintenanceResponse(c, isStream, rendered.Rendered)
+	return true
+}
+
+func writeMaintenanceResponse(c *gin.Context, isStream bool, rendered string) {
+	headers := c.Writer.Header()
+	headers.Del("Content-Length")
+	headers.Del("Content-Encoding")
+	if isStream {
+		headers.Set("Content-Type", "text/event-stream; charset=utf-8")
+		c.String(http.StatusOK, rendered)
+		c.Abort()
+		return
+	}
+	headers.Set("Content-Type", "application/json; charset=utf-8")
+	c.String(http.StatusOK, rendered)
+	c.Abort()
+}
+
 func writeGlobalMaintenanceResponse(c *gin.Context, modelRequest *ModelRequest) bool {
 	if !operation_setting.IsGlobalMaintenanceEnabled() {
 		return false
@@ -601,18 +650,7 @@ func writeGlobalMaintenanceResponse(c *gin.Context, modelRequest *ModelRequest) 
 		return false
 	}
 
-	headers := c.Writer.Header()
-	headers.Del("Content-Length")
-	headers.Del("Content-Encoding")
-	if isStream {
-		headers.Set("Content-Type", "text/event-stream; charset=utf-8")
-		c.String(http.StatusOK, rendered.Rendered)
-		c.Abort()
-		return true
-	}
-	headers.Set("Content-Type", "application/json; charset=utf-8")
-	c.String(http.StatusOK, rendered.Rendered)
-	c.Abort()
+	writeMaintenanceResponse(c, isStream, rendered.Rendered)
 	return true
 }
 
