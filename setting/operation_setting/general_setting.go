@@ -43,6 +43,14 @@ type GeneralSetting struct {
 	// 上游或渠道故障后,流式响应返回给下游的自定义模板（text/template 语法）。空 = 保持原错误响应。
 	// 模板需自行包含完整 SSE 帧格式。可用变量同上。
 	UpstreamFailureStreamTemplate string `json:"upstream_failure_stream_template"`
+	// 全局维护模式开关。开启后 relay 请求不访问上游,直接返回自定义 HTTP 200 响应。
+	GlobalMaintenanceEnabled bool `json:"global_maintenance_enabled"`
+	// 全局维护模式下,非流式请求返回给下游的自定义模板（text/template 语法）。空 = 不拦截。
+	// 可用变量: {{.Model}} {{.RequestId}} {{.Created}} {{.Timestamp}}
+	GlobalMaintenanceJSONTemplate string `json:"global_maintenance_json_template"`
+	// 全局维护模式下,流式请求返回给下游的自定义模板（text/template 语法）。空 = 不拦截。
+	// 模板需自行包含完整 SSE 帧格式。可用变量同上。
+	GlobalMaintenanceStreamTemplate string `json:"global_maintenance_stream_template"`
 }
 
 // 默认配置
@@ -63,6 +71,9 @@ chatcmpl_local_`,
 	UpstreamPollutionStreamTemplate: "",
 	UpstreamFailureJSONTemplate:     "",
 	UpstreamFailureStreamTemplate:   "",
+	GlobalMaintenanceEnabled:        false,
+	GlobalMaintenanceJSONTemplate:   "",
+	GlobalMaintenanceStreamTemplate: "",
 }
 
 func init() {
@@ -135,6 +146,22 @@ func GetUpstreamFailureJSONTemplate() string {
 // 注意: 此模板不做 TrimSpace,因为 SSE 帧的换行结构是有语义的
 func GetUpstreamFailureStreamTemplate() string {
 	return generalSetting.UpstreamFailureStreamTemplate
+}
+
+// IsGlobalMaintenanceEnabled 全局维护模式是否启用
+func IsGlobalMaintenanceEnabled() bool {
+	return generalSetting.GlobalMaintenanceEnabled
+}
+
+// GetGlobalMaintenanceJSONTemplate 返回全局维护模式非流式响应模板（原样，调用方负责渲染和容错）
+func GetGlobalMaintenanceJSONTemplate() string {
+	return strings.TrimSpace(generalSetting.GlobalMaintenanceJSONTemplate)
+}
+
+// GetGlobalMaintenanceStreamTemplate 返回全局维护模式流式响应模板（原样,调用方负责渲染和容错）
+// 注意: 此模板不做 TrimSpace,因为 SSE 帧的换行结构是有语义的
+func GetGlobalMaintenanceStreamTemplate() string {
+	return generalSetting.GlobalMaintenanceStreamTemplate
 }
 
 func sanitizeUpstreamErrorMessage(message string, fallback string) string {

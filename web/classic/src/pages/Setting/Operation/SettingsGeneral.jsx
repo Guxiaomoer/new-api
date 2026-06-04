@@ -65,6 +65,9 @@ export default function GeneralSettings(props) {
     'general_setting.upstream_pollution_stream_template': '',
     'general_setting.upstream_failure_json_template': '',
     'general_setting.upstream_failure_stream_template': '',
+    'general_setting.global_maintenance_enabled': false,
+    'general_setting.global_maintenance_json_template': '',
+    'general_setting.global_maintenance_stream_template': '',
     'token_setting.max_user_tokens': 1000,
   });
   const refForm = useRef();
@@ -562,6 +565,90 @@ export default function GeneralSettings(props) {
                   >
                     {t(
                       '上游或渠道故障且请求为流式时，模板渲染结果将以 HTTP 200 + text/event-stream 原样返回给下游；管理员日志仍记录真实错误。',
+                    )}
+                  </Text>
+                </Form.Slot>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Slot label={t('启用全局维护响应')}>
+                  <Switch
+                    checked={
+                      !!inputs['general_setting.global_maintenance_enabled']
+                    }
+                    size='default'
+                    checkedText='｜'
+                    uncheckedText='〇'
+                    onChange={(checked) =>
+                      handleFieldChange(
+                        'general_setting.global_maintenance_enabled',
+                      )(checked)
+                    }
+                  />
+                  <Text
+                    type='tertiary'
+                    size='small'
+                    style={{ marginTop: 4, display: 'block' }}
+                  >
+                    {t(
+                      '开启后，所有 relay 请求会在计费、选渠道和访问上游前直接返回自定义 HTTP 200 响应；OpenAI Realtime websocket 不受影响',
+                    )}
+                  </Text>
+                </Form.Slot>
+              </Col>
+              <Col span={24}>
+                <Form.Slot label={t('维护模式非流式响应模板')}>
+                  <TextArea
+                    value={
+                      inputs[
+                        'general_setting.global_maintenance_json_template'
+                      ] || ''
+                    }
+                    onChange={(val) =>
+                      handleFieldChange(
+                        'general_setting.global_maintenance_json_template',
+                      )(val)
+                    }
+                    placeholder={t(
+                      '仅在全局维护响应开启时生效。必须渲染为合法 JSON，将以 HTTP 200 + application/json 返回。示例：{"error":{"message":"休息一下，号池维护中","type":"maintenance","code":"maintenance"}}',
+                    )}
+                    autosize={{ minRows: 6, maxRows: 16 }}
+                  />
+                  <Text
+                    type='tertiary'
+                    size='small'
+                    style={{ marginTop: 4, display: 'block' }}
+                  >
+                    {t(
+                      '支持变量：{{.Model}} {{.RequestId}} {{.Created}} {{.Timestamp}}；变量放入 JSON 字符串时建议写 {{json .Model}} 这种安全转义形式',
+                    )}
+                  </Text>
+                </Form.Slot>
+              </Col>
+              <Col span={24}>
+                <Form.Slot label={t('维护模式流式响应模板')}>
+                  <TextArea
+                    value={
+                      inputs[
+                        'general_setting.global_maintenance_stream_template'
+                      ] || ''
+                    }
+                    onChange={(val) =>
+                      handleFieldChange(
+                        'general_setting.global_maintenance_stream_template',
+                      )(val)
+                    }
+                    placeholder={t(
+                      '仅在全局维护响应开启时生效。模板需包含完整 SSE 帧，例如：data: {"choices":[{"delta":{"content":"休息一下，号池维护中"}}]}\n\ndata: [DONE]\n\n',
+                    )}
+                    autosize={{ minRows: 6, maxRows: 16 }}
+                  />
+                  <Text
+                    type='tertiary'
+                    size='small'
+                    style={{ marginTop: 4, display: 'block' }}
+                  >
+                    {t(
+                      '流式 relay 请求会直接返回 HTTP 200 + text/event-stream，不访问上游；如需把 Model 放入 SSE JSON，请使用 {{json .Model}} 或 {{.ModelJSON}}，不要直接使用 {{.Model}}',
                     )}
                   </Text>
                 </Form.Slot>

@@ -63,6 +63,9 @@ const quotaSchema = z.object({
     upstream_pollution_stream_template: z.string(),
     upstream_failure_json_template: z.string(),
     upstream_failure_stream_template: z.string(),
+    global_maintenance_enabled: z.boolean(),
+    global_maintenance_json_template: z.string(),
+    global_maintenance_stream_template: z.string(),
   }),
   quota_setting: z.object({
     enable_free_model_pre_consume: z.boolean(),
@@ -84,6 +87,9 @@ type FlatQuotaSettings = {
   'general_setting.upstream_pollution_stream_template': string
   'general_setting.upstream_failure_json_template': string
   'general_setting.upstream_failure_stream_template': string
+  'general_setting.global_maintenance_enabled': boolean
+  'general_setting.global_maintenance_json_template': string
+  'general_setting.global_maintenance_stream_template': string
   'quota_setting.enable_free_model_pre_consume': boolean
 }
 
@@ -108,6 +114,12 @@ const flattenQuotaValues = (
     values.general_setting.upstream_failure_json_template,
   'general_setting.upstream_failure_stream_template':
     values.general_setting.upstream_failure_stream_template,
+  'general_setting.global_maintenance_enabled':
+    values.general_setting.global_maintenance_enabled,
+  'general_setting.global_maintenance_json_template':
+    values.general_setting.global_maintenance_json_template,
+  'general_setting.global_maintenance_stream_template':
+    values.general_setting.global_maintenance_stream_template,
   'quota_setting.enable_free_model_pre_consume':
     values.quota_setting.enable_free_model_pre_consume,
 })
@@ -552,6 +564,97 @@ export function QuotaSettingsSection({
                     <FormDescription>
                       {t(
                         'When an upstream/channel failure happens for a stream request, the rendered template is returned as HTTP 200 text/event-stream. Admin logs still keep the real error.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGridItem>
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='general_setting.global_maintenance_enabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Enable global maintenance response')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'When enabled, relay requests return your custom HTTP 200 response before billing, channel selection, and upstream calls. OpenAI Realtime websocket is not affected.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={updateOption.isPending}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='general_setting.global_maintenance_json_template'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {t('Maintenance mode non-stream response template')}
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={8}
+                        placeholder={t(
+                          'Used only when global maintenance response is enabled. Must render valid JSON and is returned as HTTP 200 application/json. Example: {"error":{"message":"休息一下，号池维护中","type":"maintenance","code":"maintenance"}}'
+                        )}
+                        value={field.value ?? ''}
+                        onChange={(event) => field.onChange(event.target.value)}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Variables: {{.Model}} {{.RequestId}} {{.Created}} {{.Timestamp}}. Use {{json .Model}} when inserting variables into JSON strings.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='general_setting.global_maintenance_stream_template'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {t('Maintenance mode stream response template')}
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={8}
+                        placeholder={t(
+                          'Used only when global maintenance response is enabled. The template must include complete SSE frames, for example: data: {"choices":[{"delta":{"content":"休息一下，号池维护中"}}]}\n\ndata: [DONE]\n\n'
+                        )}
+                        value={field.value ?? ''}
+                        onChange={(event) => field.onChange(event.target.value)}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'For stream relay requests, the rendered template is returned as HTTP 200 text/event-stream without accessing upstream. If you put Model into SSE JSON, use {{json .Model}} or {{.ModelJSON}} instead of raw {{.Model}}.'
                       )}
                     </FormDescription>
                     <FormMessage />

@@ -196,6 +196,9 @@ export type BillingSettings = {
   'general_setting.upstream_pollution_stream_template': string
   'general_setting.upstream_failure_json_template': string
   'general_setting.upstream_failure_stream_template': string
+  'general_setting.global_maintenance_enabled': boolean
+  'general_setting.global_maintenance_json_template': string
+  'general_setting.global_maintenance_stream_template': string
   'quota_setting.enable_free_model_pre_consume': boolean
   QuotaPerUnit: number
   USDExchangeRate: number

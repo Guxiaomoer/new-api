@@ -300,6 +300,174 @@ func TestRenderUpstreamFailureResponseInvalidJSONFallback(t *testing.T) {
 	require.Nil(t, result)
 }
 
+func TestRenderGlobalMaintenanceResponse(t *testing.T) {
+	oldEnabled := operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled
+	oldJSONTemplate := operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate
+	oldStreamTemplate := operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate
+	operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = true
+	operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate = `{"error":{"message":"休息一下，号池维护中","type":"maintenance","code":"maintenance"},"model":{{json .Model}}}`
+	operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = "data: {\"choices\":[{\"delta\":{\"content\":\"休息一下，号池维护中\"}}]}\n\ndata: [DONE]\n\n"
+	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = oldEnabled
+		operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate = oldJSONTemplate
+		operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = oldStreamTemplate
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+	c.Set(string(constant.ContextKeyOriginalModel), "gpt-test")
+	c.Set(common.RequestIdKey, "req-test")
+
+	jsonResult := RenderGlobalMaintenanceResponse(c, false)
+	require.NotNil(t, jsonResult)
+	require.Contains(t, jsonResult.Rendered, "休息一下，号池维护中")
+	require.Contains(t, jsonResult.Rendered, "maintenance")
+	require.Contains(t, jsonResult.Rendered, "gpt-test")
+
+	streamResult := RenderGlobalMaintenanceResponse(c, true)
+	require.NotNil(t, streamResult)
+	require.Equal(t, operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate, streamResult.Rendered)
+}
+
+func TestRenderGlobalMaintenanceResponseDisabled(t *testing.T) {
+	oldEnabled := operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled
+	oldJSONTemplate := operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate
+	operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = false
+	operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate = `{"message":"maintenance"}`
+	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = oldEnabled
+		operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate = oldJSONTemplate
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+
+	result := RenderGlobalMaintenanceResponse(c, false)
+	require.Nil(t, result)
+}
+
+func TestRenderGlobalMaintenanceResponseInvalidJSONFallback(t *testing.T) {
+	oldEnabled := operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled
+	oldJSONTemplate := operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate
+	operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = true
+	operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate = `not-json`
+	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = oldEnabled
+		operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate = oldJSONTemplate
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+
+	result := RenderGlobalMaintenanceResponse(c, false)
+	require.NotNil(t, result)
+	require.Contains(t, result.Rendered, "maintenance")
+	require.Contains(t, result.Rendered, "休息一下，号池维护中")
+}
+
+func TestRenderGlobalMaintenanceResponseEmptyTemplateFallback(t *testing.T) {
+	oldEnabled := operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled
+	oldJSONTemplate := operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate
+	operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = true
+	operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate = ``
+	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = oldEnabled
+		operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate = oldJSONTemplate
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+
+	result := RenderGlobalMaintenanceResponse(c, false)
+	require.NotNil(t, result)
+	require.Contains(t, result.Rendered, "maintenance")
+}
+
+func TestRenderGlobalMaintenanceResponseEmptyStreamTemplateFallback(t *testing.T) {
+	oldEnabled := operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled
+	oldStreamTemplate := operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate
+	operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = true
+	operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = ``
+	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = oldEnabled
+		operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = oldStreamTemplate
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+
+	result := RenderGlobalMaintenanceResponse(c, true)
+	require.NotNil(t, result)
+	require.Contains(t, result.Rendered, "data:")
+	require.Contains(t, result.Rendered, "[DONE]")
+}
+
+func TestRenderGlobalMaintenanceResponseRejectsRawStreamModel(t *testing.T) {
+	oldEnabled := operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled
+	oldStreamTemplate := operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate
+	operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = true
+	operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = "data: {{.Model}}\n\ndata: [DONE]\n\n"
+	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = oldEnabled
+		operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = oldStreamTemplate
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+	c.Set(string(constant.ContextKeyOriginalModel), "safe\n\ndata: injected")
+
+	result := RenderGlobalMaintenanceResponse(c, true)
+
+	require.NotNil(t, result)
+	require.Contains(t, result.Rendered, "休息一下，号池维护中")
+	require.NotContains(t, result.Rendered, "safe")
+}
+
+func TestRenderGlobalMaintenanceResponseRejectsRawStreamModelWithModelJSON(t *testing.T) {
+	oldEnabled := operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled
+	oldStreamTemplate := operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate
+	operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = true
+	operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = `data: {{printf "%s%s" .ModelJSON .Model}}
+
+data: [DONE]
+
+`
+	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = oldEnabled
+		operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = oldStreamTemplate
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+	c.Set(string(constant.ContextKeyOriginalModel), `safe"model`)
+
+	result := RenderGlobalMaintenanceResponse(c, true)
+
+	require.NotNil(t, result)
+	require.Contains(t, result.Rendered, "休息一下，号池维护中")
+	require.NotContains(t, result.Rendered, "safe")
+}
+
+func TestRenderGlobalMaintenanceResponseAllowsModelJSONInStream(t *testing.T) {
+	oldEnabled := operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled
+	oldStreamTemplate := operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate
+	operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = true
+	operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = "data: {\"model\":{{.ModelJSON}}}\n\ndata: [DONE]\n\n"
+	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = oldEnabled
+		operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = oldStreamTemplate
+	})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+	c.Set(string(constant.ContextKeyOriginalModel), `safe"model`)
+
+	result := RenderGlobalMaintenanceResponse(c, true)
+
+	require.NotNil(t, result)
+	require.Contains(t, result.Rendered, `"safe\"model"`)
+}
+
 func TestIsUpstreamFailureError(t *testing.T) {
 	t.Parallel()
 

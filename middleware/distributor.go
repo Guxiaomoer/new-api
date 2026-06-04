@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -25,14 +27,36 @@ import (
 )
 
 type ModelRequest struct {
-	Model string `json:"model"`
-	Group string `json:"group,omitempty"`
+	Model            string `json:"model"`
+	Group            string `json:"group,omitempty"`
+	ExtractionFailed bool   `json:"-"`
 }
+
+type globalMaintenanceRequestFields struct {
+	Model            string `json:"model"`
+	Group            string `json:"group"`
+	Stream           bool   `json:"stream"`
+	ExtractionFailed bool   `json:"-"`
+}
+
+const (
+	globalMaintenanceRequestFieldsKey   = "global_maintenance_request_fields"
+	globalMaintenanceFormFieldReadLimit = 64 * 1024
+)
 
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
 		channelId, ok := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId)
+		if shouldHandleGlobalMaintenance(c) {
+			globalMaintenanceModelRequest := bestEffortGlobalMaintenanceModelRequest(c)
+			if !authorizeGlobalMaintenanceRequest(c, globalMaintenanceModelRequest) {
+				return
+			}
+			if writeGlobalMaintenanceResponse(c, globalMaintenanceModelRequest) {
+				return
+			}
+		}
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
 		if err != nil {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
@@ -142,10 +166,10 @@ func Distribute() func(c *gin.Context) {
 							showGroup = fmt.Sprintf("auto(%s)", selectGroup)
 						}
 						message := i18n.T(c, i18n.MsgDistributorGetChannelFailed, map[string]any{"Group": showGroup, "Model": modelRequest.Model, "Error": err.Error()})
-						// 如果错误，但是渠道不为空，说明是数据库一致性问题
+						// If there is an error while channel is not nil, it indicates a database consistency issue.
 						//if channel != nil {
-						//	common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
-						//	message = "数据库一致性已被破坏，请联系管理员"
+						//	common.SysError(fmt.Sprintf("channel does not exist: %d", channel.Id))
+						//	message = "database consistency has been broken, please contact the administrator"
 						//}
 						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, message, types.ErrorCodeModelNotFound)
 						return
@@ -166,9 +190,8 @@ func Distribute() func(c *gin.Context) {
 	}
 }
 
-// getModelFromRequest 从请求中读取模型信息
-// 根据 Content-Type 自动处理：
-// - application/json
+// getModelFromRequest reads model information from the request.
+// It handles Content-Type automatically:
 // - application/x-www-form-urlencoded
 // - multipart/form-data
 func getModelFromRequest(c *gin.Context) (*ModelRequest, error) {
@@ -317,7 +340,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			c.Set("relay_mode", relayMode)
 		}
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
-		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
+		// Gemini API path: /v1beta/models/gemini-2.0-flash:generateContent
 		relayMode := relayconstant.RelayModeGemini
 		modelName := extractModelNameFromGeminiPath(c.Request.URL.Path)
 		if modelName != "" {
@@ -363,14 +386,14 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 
 			modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "tts-1")
 		} else if strings.HasPrefix(c.Request.URL.Path, "/v1/audio/translations") {
-			// 先尝试从请求读取
+			// Try reading the model from the request first.
 			if req, err := getModelFromRequest(c); err == nil && req.Model != "" {
 				modelRequest.Model = req.Model
 			}
 			modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "whisper-1")
 			relayMode = relayconstant.RelayModeAudioTranslation
 		} else if strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") {
-			// 先尝试从请求读取
+			// Try reading the model from the request first.
 			if req, err := getModelFromRequest(c); err == nil && req.Model != "" {
 				modelRequest.Model = req.Model
 			}
@@ -394,6 +417,220 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
 	}
 	return &modelRequest, shouldSelectChannel, nil
+}
+
+func shouldHandleGlobalMaintenance(c *gin.Context) bool {
+	if !operation_setting.IsGlobalMaintenanceEnabled() {
+		return false
+	}
+	if c == nil || c.Request == nil {
+		return false
+	}
+	return !strings.HasPrefix(c.Request.URL.Path, "/v1/realtime")
+}
+
+func authorizeGlobalMaintenanceRequest(c *gin.Context, modelRequest *ModelRequest) bool {
+	if modelRequest == nil {
+		return true
+	}
+	if modelRequest.Group != "" {
+		usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+		if !service.GroupInUserUsableGroups(usingGroup, modelRequest.Group) && modelRequest.Group != usingGroup {
+			abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
+			return false
+		}
+	}
+	modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
+	if !modelLimitEnable {
+		return true
+	}
+	if modelRequest.ExtractionFailed {
+		abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenNoModelAccess))
+		return false
+	}
+	if modelRequest.Model == "" {
+		return true
+	}
+	s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
+	if !ok {
+		abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenNoModelAccess))
+		return false
+	}
+	tokenModelLimit, ok := s.(map[string]bool)
+	if !ok {
+		tokenModelLimit = map[string]bool{}
+	}
+	matchName := ratio_setting.FormatMatchingModelName(modelRequest.Model)
+	if _, ok := tokenModelLimit[matchName]; !ok {
+		abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": modelRequest.Model}))
+		return false
+	}
+	return true
+}
+
+func bestEffortGlobalMaintenanceModelRequest(c *gin.Context) *ModelRequest {
+	if c == nil || c.Request == nil {
+		return nil
+	}
+	modelRequest := &ModelRequest{}
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/realtime") {
+		modelRequest.Model = c.Query("model")
+		return modelRequest
+	}
+	if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
+		modelRequest.Model = extractModelNameFromGeminiPath(c.Request.URL.Path)
+		return modelRequest
+	}
+	if strings.HasSuffix(c.Request.URL.Path, "embeddings") {
+		modelRequest.Model = c.Param("model")
+		return modelRequest
+	}
+	if strings.Contains(c.Request.URL.Path, "/suno/") {
+		modelRequest.Model = service.CoverTaskActionToModelName(constant.TaskPlatformSuno, c.Param("action"))
+		return modelRequest
+	}
+	if strings.Contains(c.Request.URL.Path, "/mj/") {
+		return modelRequest
+	}
+
+	fields := bestEffortGlobalMaintenanceRequestFields(c)
+	modelRequest.Model = fields.Model
+	modelRequest.Group = fields.Group
+	modelRequest.ExtractionFailed = fields.ExtractionFailed
+
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/moderations") {
+		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "text-moderation-stable")
+	}
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {
+		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "dall-e")
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
+		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "gpt-image-1")
+	}
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/audio/speech") {
+		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "tts-1")
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/audio/translations") || strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") {
+		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "whisper-1")
+	}
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") && modelRequest.Model != "" {
+		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
+	}
+	return modelRequest
+}
+
+func bestEffortGlobalMaintenanceRequestFields(c *gin.Context) globalMaintenanceRequestFields {
+	if value, ok := c.Get(globalMaintenanceRequestFieldsKey); ok {
+		if fields, ok := value.(globalMaintenanceRequestFields); ok {
+			return fields
+		}
+	}
+
+	var fields globalMaintenanceRequestFields
+	contentType := c.Request.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "application/json") {
+		storage, err := common.GetBodyStorage(c)
+		if err == nil {
+			if _, seekErr := storage.Seek(0, io.SeekStart); seekErr == nil {
+				_ = common.DecodeJson(storage, &fields)
+			}
+			if _, seekErr := storage.Seek(0, io.SeekStart); seekErr == nil {
+				c.Request.Body = io.NopCloser(storage)
+			}
+		}
+	} else if c.ContentType() == gin.MIMEPOSTForm {
+		fields = bestEffortGlobalMaintenanceURLEncodedFields(c)
+	} else if c.ContentType() == gin.MIMEMultipartPOSTForm {
+		fields.ExtractionFailed = true
+	}
+
+	c.Set(globalMaintenanceRequestFieldsKey, fields)
+	return fields
+}
+
+func bestEffortGlobalMaintenanceURLEncodedFields(c *gin.Context) globalMaintenanceRequestFields {
+	var fields globalMaintenanceRequestFields
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		fields.ExtractionFailed = true
+		return fields
+	}
+	defer func() {
+		if _, seekErr := storage.Seek(0, io.SeekStart); seekErr == nil {
+			c.Request.Body = io.NopCloser(storage)
+		}
+	}()
+
+	if storage.Size() > globalMaintenanceFormFieldReadLimit {
+		fields.ExtractionFailed = true
+		return fields
+	}
+	if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
+		fields.ExtractionFailed = true
+		return fields
+	}
+	body, err := io.ReadAll(io.LimitReader(storage, globalMaintenanceFormFieldReadLimit+1))
+	if err != nil || len(body) > globalMaintenanceFormFieldReadLimit {
+		fields.ExtractionFailed = true
+		return fields
+	}
+	values, err := url.ParseQuery(string(body))
+	if err != nil {
+		fields.ExtractionFailed = true
+		return fields
+	}
+	fields.Model = values.Get("model")
+	fields.Group = values.Get("group")
+	fields.Stream = values.Get("stream") == "true"
+	return fields
+}
+
+func writeGlobalMaintenanceResponse(c *gin.Context, modelRequest *ModelRequest) bool {
+	if !operation_setting.IsGlobalMaintenanceEnabled() {
+		return false
+	}
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/realtime") {
+		return false
+	}
+	if modelRequest != nil {
+		common.SetContextKey(c, constant.ContextKeyOriginalModel, modelRequest.Model)
+	}
+
+	isStream := isGlobalMaintenanceStreamRequest(c)
+	common.SetContextKey(c, constant.ContextKeyIsStream, isStream)
+	rendered := service.RenderGlobalMaintenanceResponse(c, isStream)
+	if rendered == nil {
+		return false
+	}
+
+	headers := c.Writer.Header()
+	headers.Del("Content-Length")
+	headers.Del("Content-Encoding")
+	if isStream {
+		headers.Set("Content-Type", "text/event-stream; charset=utf-8")
+		c.String(http.StatusOK, rendered.Rendered)
+		c.Abort()
+		return true
+	}
+	headers.Set("Content-Type", "application/json; charset=utf-8")
+	c.String(http.StatusOK, rendered.Rendered)
+	c.Abort()
+	return true
+}
+
+func isGlobalMaintenanceStreamRequest(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	if c.Query("alt") == "sse" {
+		return true
+	}
+	path := c.Request.URL.Path
+	if strings.Contains(path, "streamGenerateContent") {
+		return true
+	}
+	if strings.HasPrefix(c.Request.Header.Get("Content-Type"), "application/json") {
+		return bestEffortGlobalMaintenanceRequestFields(c).Stream
+	}
+	return false
 }
 
 func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {
@@ -429,7 +666,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, true)
 		common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, index)
 	} else {
-		// 必须设置为 false，否则在重试到单个 key 的时候会导致日志显示错误
+		// Must be set to false, otherwise logs are wrong when retrying a single key.
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, false)
 	}
 	// c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", key))
@@ -438,7 +675,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 
 	common.SetContextKey(c, constant.ContextKeySystemPromptOverride, false)
 
-	// TODO: api_version统一
+	// TODO: unify api_version handling
 	switch channel.Type {
 	case constant.ChannelTypeAzure:
 		c.Set("api_version", channel.Other)
@@ -460,30 +697,24 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	return nil
 }
 
-// extractModelNameFromGeminiPath 从 Gemini API URL 路径中提取模型名
-// 输入格式: /v1beta/models/gemini-2.0-flash:generateContent
-// 输出: gemini-2.0-flash
+// extractModelNameFromGeminiPath extracts the model name from a Gemini API URL path.
+// Example: /v1beta/models/gemini-2.0-flash:generateContent -> gemini-2.0-flash
 func extractModelNameFromGeminiPath(path string) string {
-	// 查找 "/models/" 的位置
 	modelsPrefix := "/models/"
 	modelsIndex := strings.Index(path, modelsPrefix)
 	if modelsIndex == -1 {
 		return ""
 	}
 
-	// 从 "/models/" 之后开始提取
 	startIndex := modelsIndex + len(modelsPrefix)
 	if startIndex >= len(path) {
 		return ""
 	}
 
-	// 查找 ":" 的位置，模型名在 ":" 之前
 	colonIndex := strings.Index(path[startIndex:], ":")
 	if colonIndex == -1 {
-		// 如果没有找到 ":"，返回从 "/models/" 到路径结尾的部分
 		return path[startIndex:]
 	}
 
-	// 返回模型名部分
 	return path[startIndex : startIndex+colonIndex]
 }

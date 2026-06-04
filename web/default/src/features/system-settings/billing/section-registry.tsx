@@ -76,6 +76,12 @@ const BILLING_SECTIONS = [
               settings['general_setting.upstream_failure_json_template'] ?? '',
             upstream_failure_stream_template:
               settings['general_setting.upstream_failure_stream_template'] ?? '',
+            global_maintenance_enabled:
+              settings['general_setting.global_maintenance_enabled'] ?? false,
+            global_maintenance_json_template:
+              settings['general_setting.global_maintenance_json_template'] ?? '',
+            global_maintenance_stream_template:
+              settings['general_setting.global_maintenance_stream_template'] ?? '',
           },
           quota_setting: {
             enable_free_model_pre_consume:
