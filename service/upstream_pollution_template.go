@@ -61,6 +61,11 @@ type PollutionRenderResult struct {
 // - 模板为空 → 返回 nil（调用方走硬编码 fallback）
 // - 模板解析/渲染出错 → 写错误日志,返回 nil（调用方走硬编码 fallback）
 func RenderUpstreamPollutionResponse(c *gin.Context, isStream bool, keyword string) *PollutionRenderResult {
+	if message := operation_setting.GetUpstreamPollutionMessage(); message != "" {
+		channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
+		return RenderPlainMaintenanceResponse(c, isStream, message, channelType)
+	}
+
 	var tmplText string
 	if isStream {
 		tmplText = operation_setting.GetUpstreamPollutionStreamTemplate()
@@ -100,6 +105,11 @@ func RenderUpstreamPollutionResponse(c *gin.Context, isStream bool, keyword stri
 func RenderUpstreamFailureResponse(c *gin.Context, newAPIError *types.NewAPIError, isStream bool) *PollutionRenderResult {
 	if !IsUpstreamFailureError(newAPIError) {
 		return nil
+	}
+
+	if message := operation_setting.GetUpstreamFailureMessage(); message != "" {
+		channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
+		return RenderPlainMaintenanceResponse(c, isStream, message, channelType)
 	}
 
 	var tmplText string

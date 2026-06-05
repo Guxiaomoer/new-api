@@ -75,6 +75,10 @@ const OPERATIONS_SECTIONS = [
             settings['general_setting.upstream_pollution_keywords'] ?? '',
           'general_setting.upstream_pollution_disable_channel':
             settings['general_setting.upstream_pollution_disable_channel'] ?? true,
+          'general_setting.upstream_pollution_message':
+            settings['general_setting.upstream_pollution_message'] ?? '',
+          'general_setting.upstream_failure_message':
+            settings['general_setting.upstream_failure_message'] ?? '',
         }}
       />
     ),

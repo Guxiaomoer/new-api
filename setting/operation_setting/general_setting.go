@@ -31,13 +31,17 @@ type GeneralSetting struct {
 	UpstreamPollutionKeywords string `json:"upstream_pollution_keywords"`
 	// 命中污染后是否自动禁用渠道
 	UpstreamPollutionDisableChannel bool `json:"upstream_pollution_disable_channel"`
-	// 命中污染后,非流式响应返回给下游的自定义模板（text/template 语法）。空 = 退回硬编码 error 响应。
+	// 命中污染后返回给下游的纯文本自定义内容；后端自动包装为对应协议响应。
+	UpstreamPollutionMessage string `json:"upstream_pollution_message"`
+	// 命中污染后,非流式响应返回给下游的自定义模板（text/template 语法）。空 = 退回纯文本/硬编码 error 响应。
 	// 可用变量: {{.Model}} {{.Keyword}} {{.ChannelId}} {{.ChannelName}} {{.RequestId}} {{.Created}} {{.Timestamp}}
 	UpstreamPollutionJSONTemplate string `json:"upstream_pollution_json_template"`
-	// 命中污染后,流式响应返回给下游的自定义模板（text/template 语法）。空 = 退回硬编码 SSE error 帧。
+	// 命中污染后,流式响应返回给下游的自定义模板（text/template 语法）。空 = 退回纯文本/硬编码 SSE error 帧。
 	// 模板需自行包含完整 SSE 帧格式（含 "data: " 前缀、"\n\n" 分隔符、终止 "[DONE]"）。可用变量同上。
 	UpstreamPollutionStreamTemplate string `json:"upstream_pollution_stream_template"`
-	// 上游或渠道故障后,非流式响应返回给下游的自定义模板（text/template 语法）。空 = 保持原错误响应。
+	// 上游或渠道故障后返回给下游的纯文本自定义内容；后端自动包装为对应协议响应。
+	UpstreamFailureMessage string `json:"upstream_failure_message"`
+	// 上游或渠道故障后,非流式响应返回给下游的自定义模板（text/template 语法）。空 = 退回纯文本/保持原错误响应。
 	// 可用变量: {{.Model}} {{.ErrorCode}} {{.StatusCode}} {{.ChannelId}} {{.ChannelName}} {{.RequestId}} {{.Created}} {{.Timestamp}}
 	UpstreamFailureJSONTemplate string `json:"upstream_failure_json_template"`
 	// 上游或渠道故障后,流式响应返回给下游的自定义模板（text/template 语法）。空 = 保持原错误响应。
@@ -70,8 +74,10 @@ var generalSetting = GeneralSetting{
 公益 token
 chatcmpl_local_`,
 	UpstreamPollutionDisableChannel: true,
+	UpstreamPollutionMessage:        "上游响应命中安全过滤，请稍后重试",
 	UpstreamPollutionJSONTemplate:   "",
 	UpstreamPollutionStreamTemplate: "",
+	UpstreamFailureMessage:          "上游服务暂时不可用，请稍后重试",
 	UpstreamFailureJSONTemplate:     "",
 	UpstreamFailureStreamTemplate:   "",
 	GlobalMaintenanceEnabled:        false,
@@ -130,6 +136,22 @@ func IsUpstreamPollutionDisableChannel() bool {
 	return generalSetting.UpstreamPollutionDisableChannel
 }
 
+// GetUpstreamPollutionMessage 返回命中污染后给下游展示的纯文本自定义响应内容
+func GetUpstreamPollutionMessage() string {
+	return sanitizeCustomResponseMessage(
+		generalSetting.UpstreamPollutionMessage,
+		"上游响应命中安全过滤，请稍后重试",
+	)
+}
+
+// GetUpstreamFailureMessage 返回上游故障后给下游展示的纯文本自定义响应内容
+func GetUpstreamFailureMessage() string {
+	return sanitizeCustomResponseMessage(
+		generalSetting.UpstreamFailureMessage,
+		"上游服务暂时不可用，请稍后重试",
+	)
+}
+
 // GetUpstreamPollutionJSONTemplate 返回非流式拦截响应模板（原样，调用方负责渲染和容错）
 func GetUpstreamPollutionJSONTemplate() string {
 	return strings.TrimSpace(generalSetting.UpstreamPollutionJSONTemplate)
@@ -171,6 +193,25 @@ func GetGlobalMaintenanceJSONTemplate() string {
 // 注意: 此模板不做 TrimSpace,因为 SSE 帧的换行结构是有语义的
 func GetGlobalMaintenanceStreamTemplate() string {
 	return generalSetting.GlobalMaintenanceStreamTemplate
+}
+
+func sanitizeCustomResponseMessage(message string, fallback string) string {
+	message = strings.Map(func(r rune) rune {
+		if r == '\t' || r == '\n' || r == '\r' {
+			return r
+		}
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, strings.TrimSpace(message))
+	if message == "" {
+		return fallback
+	}
+	if len([]rune(message)) > 2000 {
+		return fallback
+	}
+	return message
 }
 
 func sanitizeUpstreamErrorMessage(message string, fallback string) string {

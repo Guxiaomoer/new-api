@@ -50,6 +50,8 @@ import { useUpdateOption } from '../hooks/use-update-option'
 const responseFilterSchema = z.object({
   'general_setting.upstream_pollution_keywords': z.string(),
   'general_setting.upstream_pollution_disable_channel': z.boolean(),
+  'general_setting.upstream_pollution_message': z.string(),
+  'general_setting.upstream_failure_message': z.string(),
 })
 
 type ResponseFilterFormValues = z.infer<typeof responseFilterSchema>
@@ -157,7 +159,69 @@ export function ResponseFilterSection({
                     </FormControl>
                     <FormDescription>
                       {t(
-                        'If any keyword is found in the upstream response, the system returns a safe response automatically and handles the channel according to the auto-disable switch. No JSON or SSE template is required.'
+                        'If any keyword is found in the upstream response, the system returns your configured message automatically and handles the channel according to the auto-disable switch. No JSON or SSE template is required.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='general_setting.upstream_pollution_message'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Pollution response message')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={3}
+                        placeholder={t(
+                          'Plain text returned when an upstream response matches pollution keywords.'
+                        )}
+                        value={field.value ?? ''}
+                        onChange={(event) => field.onChange(event.target.value)}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Only enter the text you want users to see. The backend automatically wraps it for stream and non-stream responses.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='general_setting.upstream_failure_message'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Upstream failure response message')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={3}
+                        placeholder={t(
+                          'Plain text returned when upstream retries are exhausted.'
+                        )}
+                        value={field.value ?? ''}
+                        onChange={(event) => field.onChange(event.target.value)}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Only enter the text you want users to see. The backend automatically wraps it for Claude, OpenAI, Gemini, stream, and non-stream requests.'
                       )}
                     </FormDescription>
                     <FormMessage />

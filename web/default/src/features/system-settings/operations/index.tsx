@@ -40,6 +40,8 @@ const defaultOperationsSettings: OperationsSettings = {
     '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
   'general_setting.upstream_pollution_keywords': '',
   'general_setting.upstream_pollution_disable_channel': true,
+  'general_setting.upstream_pollution_message': '',
+  'general_setting.upstream_failure_message': '',
   'general_setting.global_maintenance_enabled': false,
   'general_setting.global_maintenance_message': '',
   'monitor_setting.auto_test_channel_enabled': false,
