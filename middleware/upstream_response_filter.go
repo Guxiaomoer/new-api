@@ -2,9 +2,12 @@ package middleware
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -32,8 +35,7 @@ const (
 // 未命中则正常透传，后续 chunk 直接写出不再扫描。
 func UpstreamResponseFilter() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 关键词为空 → 检测关闭，零开销直接放行
-		if len(operation_setting.GetUpstreamPollutionKeywords()) == 0 {
+		if len(operation_setting.GetUpstreamPollutionKeywords()) == 0 && !operation_setting.IsUpstreamSuspiciousPollutionDetectionEnabled() {
 			c.Next()
 			return
 		}
@@ -125,8 +127,8 @@ func (w *pollutionFilterWriter) decide() error {
 		return nil
 	}
 
-	hit := service.DetectUpstreamPollution(w.buffer.Bytes())
-	if hit == "" {
+	hit := service.DetectUpstreamPollutionDetail(w.buffer.Bytes())
+	if !hit.Matched {
 		// 干净：先冲 header，再 flush 缓冲数据
 		w.state = pollutionStatePassing
 		if w.headerSet {
@@ -142,10 +144,10 @@ func (w *pollutionFilterWriter) decide() error {
 		return nil
 	}
 
-	// 命中：阻断并改写响应
+	upstreamBody := w.buffer.String()
 	w.buffer.Reset()
 	w.state = pollutionStateBlocked
-	w.handlePollution(hit)
+	w.handlePollution(hit, upstreamBody)
 	return nil
 }
 
@@ -157,7 +159,7 @@ func (w *pollutionFilterWriter) finalize() {
 }
 
 // handlePollution 命中污染时的处理：日志 + 禁用渠道 + 改写错误响应。
-func (w *pollutionFilterWriter) handlePollution(hit string) {
+func (w *pollutionFilterWriter) handlePollution(hit service.UpstreamPollutionDetection, upstreamBody string) {
 	channelId := common.GetContextKeyInt(w.ctx, constant.ContextKeyChannelId)
 	channelName := common.GetContextKeyString(w.ctx, constant.ContextKeyChannelName)
 	channelType := common.GetContextKeyInt(w.ctx, constant.ContextKeyChannelType)
@@ -167,31 +169,81 @@ func (w *pollutionFilterWriter) handlePollution(hit string) {
 	modelName := common.GetContextKeyString(w.ctx, constant.ContextKeyOriginalModel)
 
 	logger.LogError(w.ctx, fmt.Sprintf(
-		"[upstream_pollution] HIT channel=#%d(%s) model=%s keyword=%q",
-		channelId, channelName, modelName, hit,
+		"[upstream_pollution] HIT channel=#%d(%s) model=%s type=%s rule=%s keyword=%q",
+		channelId, channelName, modelName, hit.Type, hit.Rule, hit.Keyword,
 	))
-	w.recordPollutionLog(hit, channelId, channelName, modelName)
 
-	// 自动禁用渠道（异步，不阻塞响应）
 	if operation_setting.IsUpstreamPollutionDisableChannel() && channelId > 0 {
 		chErr := types.NewChannelError(channelId, channelType, channelName, isMultiKey, channelKey, autoBan)
-		reason := fmt.Sprintf("命中上游响应污染关键词: %s", hit)
-		go service.DisableChannel(*chErr, reason)
+		go service.DisableChannel(*chErr, hit.Reason)
 	}
 
-	w.writeReplacementResponse(hit)
+	originalContentType := w.ResponseWriter.Header().Get("Content-Type")
+	originalStatusCode := w.statusCode
+	if originalStatusCode == 0 {
+		originalStatusCode = w.ResponseWriter.Status()
+	}
+	if originalStatusCode == 0 {
+		originalStatusCode = http.StatusOK
+	}
+	safeBody, isStream := w.writeReplacementResponse(hit)
+	w.recordPollutionLog(hit, channelId, channelName, channelType, modelName, upstreamBody, safeBody, isStream, originalStatusCode, originalContentType)
 }
 
-func (w *pollutionFilterWriter) recordPollutionLog(hit string, channelId int, channelName string, modelName string) {
+func (w *pollutionFilterWriter) recordPollutionLog(hit service.UpstreamPollutionDetection, channelId int, channelName string, channelType int, modelName string, upstreamBody string, safeBody string, isStream bool, upstreamStatusCode int, upstreamContentType string) {
 	userId := common.GetContextKeyInt(w.ctx, constant.ContextKeyUserId)
 	tokenId := common.GetContextKeyInt(w.ctx, constant.ContextKeyTokenId)
 	group := common.GetContextKeyString(w.ctx, constant.ContextKeyTokenGroup)
-	isStream := strings.Contains(strings.ToLower(w.ResponseWriter.Header().Get("Content-Type")), "text/event-stream")
-	content := fmt.Sprintf("命中上游响应污染关键词: %s", hit)
+	content := hit.Reason
+	metadata := map[string]any{
+		"channel_name":                channelName,
+		"token_group":                 group,
+		"auto_disable_configured":     operation_setting.IsUpstreamPollutionDisableChannel(),
+		"auto_disable_attempted":      operation_setting.IsUpstreamPollutionDisableChannel() && channelId > 0,
+		"captured_upstream_max_bytes": model.InterceptMaxBodySize,
+	}
+	metadataBytes, _ := common.Marshal(metadata)
+	contentHashes := []string{fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(upstreamBody)))}
+	contentHashBytes, _ := common.Marshal(contentHashes)
+	clientBody := w.getClientRequestBody()
+	if operation_setting.IsUpstreamInterceptAuditEnabled() {
+		log := &model.InterceptLog{
+			CreatedAt:                time.Now().Unix(),
+			RequestId:                w.ctx.GetString(common.RequestIdKey),
+			UserId:                   userId,
+			TokenId:                  tokenId,
+			ChannelId:                channelId,
+			ChannelType:              channelType,
+			ModelName:                modelName,
+			RequestPath:              requestPath(w.ctx),
+			IsStream:                 isStream,
+			InterceptType:            hit.Type,
+			Rule:                     hit.Rule,
+			Reason:                   hit.Reason,
+			Keyword:                  hit.Keyword,
+			Severity:                 interceptSeverity(hit),
+			AutoDisabledChannel:      operation_setting.IsUpstreamPollutionDisableChannel() && channelId > 0,
+			UpstreamStatusCode:       upstreamStatusCode,
+			UpstreamContentType:      upstreamContentType,
+			ContentHashes:            string(contentHashBytes),
+			Metadata:                 string(metadataBytes),
+			FullClientRequestBody:    clientBody,
+			FullUpstreamResponseBody: upstreamBody,
+			FullSafeResponseBody:     safeBody,
+			ExcerptClientRequest:     excerpt(clientBody),
+			ExcerptUpstreamResponse:  excerpt(upstreamBody),
+			ExcerptSafeResponse:      excerpt(safeBody),
+		}
+		if err := model.CreateInterceptLog(log); err != nil {
+			logger.LogError(w.ctx, fmt.Sprintf("[upstream_pollution] create intercept log failed: %s", err.Error()))
+		}
+	}
 	other := map[string]interface{}{
 		"admin_info": map[string]interface{}{
 			"upstream_pollution": map[string]interface{}{
-				"keyword":                 hit,
+				"type":                    hit.Type,
+				"rule":                    hit.Rule,
+				"keyword":                 hit.Keyword,
 				"channel_id":              channelId,
 				"channel_name":            channelName,
 				"model":                   modelName,
@@ -199,28 +251,32 @@ func (w *pollutionFilterWriter) recordPollutionLog(hit string, channelId int, ch
 			},
 		},
 	}
-	model.RecordErrorLog(w.ctx, userId, channelId, modelName, "", content, tokenId, 0, isStream, group, other)
+	if model.LOG_DB != nil {
+		model.RecordErrorLog(w.ctx, userId, channelId, modelName, "", content, tokenId, 0, isStream, group, other)
+	}
 }
 
 // writeReplacementResponse 改写命中污染的响应。
 // 优先尝试用户自定义模板（service.RenderUpstreamPollutionResponse）;
 // 模板为空或渲染失败则回退到硬编码的安全错误响应。
-func (w *pollutionFilterWriter) writeReplacementResponse(hit string) {
+func (w *pollutionFilterWriter) writeReplacementResponse(hit service.UpstreamPollutionDetection) (string, bool) {
 	originalCT := strings.ToLower(w.ResponseWriter.Header().Get("Content-Type"))
-	isStream := strings.Contains(originalCT, "text/event-stream")
+	isStream := common.GetContextKeyBool(w.ctx, constant.ContextKeyIsStream) || strings.Contains(originalCT, "text/event-stream")
 
 	headers := w.ResponseWriter.Header()
 	headers.Del("Content-Length")
 	headers.Del("Content-Encoding")
 
-	// 优先尝试自定义模板
-	if rendered := service.RenderUpstreamPollutionResponse(w.ctx, isStream, hit); rendered != nil {
+	keyword := hit.Keyword
+	if keyword == "" {
+		keyword = hit.Rule
+	}
+	if rendered := service.RenderUpstreamPollutionResponse(w.ctx, isStream, keyword); rendered != nil {
 		w.writeTemplatedResponse(rendered, isStream)
-		return
+		return rendered.Rendered, isStream
 	}
 
-	// Fallback: 当前硬编码 error 响应
-	w.writeFallbackErrorResponse(isStream)
+	return w.writeFallbackErrorResponse(isStream), isStream
 }
 
 // writeTemplatedResponse 写用户自定义模板渲染后的响应（HTTP 200,假装正常应答）
@@ -243,7 +299,7 @@ func (w *pollutionFilterWriter) writeTemplatedResponse(result *service.Pollution
 }
 
 // writeFallbackErrorResponse 保留原有硬编码 error 响应（模板为空/出错时使用）
-func (w *pollutionFilterWriter) writeFallbackErrorResponse(isStream bool) {
+func (w *pollutionFilterWriter) writeFallbackErrorResponse(isStream bool) string {
 	message := operation_setting.GetUpstreamErrorMessage()
 	headers := w.ResponseWriter.Header()
 
@@ -256,25 +312,67 @@ func (w *pollutionFilterWriter) writeFallbackErrorResponse(isStream bool) {
 	}
 	payloadBytes, err := common.Marshal(errorPayload)
 	if err != nil {
-		// 极端兜底
 		payloadBytes = []byte(`{"error":{"message":"upstream response blocked","type":"new_api_error","code":"upstream_pollution"}}`)
 	}
 
 	if isStream {
-		// 保留 SSE Content-Type，状态码 200（流式协议要求）
 		headers.Set("Content-Type", "text/event-stream; charset=utf-8")
 		headers.Set("Cache-Control", "no-cache")
 		headers.Set("Connection", "keep-alive")
 		w.ResponseWriter.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w.ResponseWriter, "data: %s\n\ndata: [DONE]\n\n", string(payloadBytes))
+		body := fmt.Sprintf("data: %s\n\ndata: [DONE]\n\n", string(payloadBytes))
+		if _, err := w.ResponseWriter.Write([]byte(body)); err != nil {
+			logger.LogError(w.ctx, fmt.Sprintf("[upstream_pollution] write replacement failed: %s", err.Error()))
+		}
 		w.ResponseWriter.Flush()
-		return
+		return body
 	}
 
-	// 非流式：JSON + 502
 	headers.Set("Content-Type", "application/json; charset=utf-8")
 	w.ResponseWriter.WriteHeader(http.StatusBadGateway)
 	if _, writeErr := w.ResponseWriter.Write(payloadBytes); writeErr != nil {
 		logger.LogError(w.ctx, fmt.Sprintf("[upstream_pollution] write replacement failed: %s", writeErr.Error()))
 	}
+	return string(payloadBytes)
+}
+
+func (w *pollutionFilterWriter) getClientRequestBody() string {
+	storage, err := common.GetBodyStorage(w.ctx)
+	if err != nil {
+		return ""
+	}
+	if _, err = storage.Seek(0, io.SeekStart); err != nil {
+		return ""
+	}
+	body, err := storage.Bytes()
+	if err != nil {
+		return ""
+	}
+	if _, err = storage.Seek(0, io.SeekStart); err != nil {
+		return ""
+	}
+	w.ctx.Request.Body = io.NopCloser(storage)
+	return string(body)
+}
+
+func requestPath(c *gin.Context) string {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return ""
+	}
+	return c.Request.URL.Path
+}
+
+func interceptSeverity(hit service.UpstreamPollutionDetection) string {
+	if hit.Type == service.UpstreamPollutionTypeKeyword {
+		return "high"
+	}
+	return "medium"
+}
+
+func excerpt(body string) string {
+	const limit = 512
+	if len(body) <= limit {
+		return body
+	}
+	return body[:limit]
 }

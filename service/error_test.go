@@ -249,11 +249,14 @@ func TestRelayErrorHandlerKeepsInvalidJSONBodyInDebugLog(t *testing.T) {
 }
 
 func TestRenderUpstreamFailureResponse(t *testing.T) {
+	oldMessage := operation_setting.GetGeneralSetting().UpstreamFailureMessage
 	oldJSONTemplate := operation_setting.GetGeneralSetting().UpstreamFailureJSONTemplate
 	oldStreamTemplate := operation_setting.GetGeneralSetting().UpstreamFailureStreamTemplate
+	operation_setting.GetGeneralSetting().UpstreamFailureMessage = ""
 	operation_setting.GetGeneralSetting().UpstreamFailureJSONTemplate = `{"error":{"message":"休息一下，号池维护中","type":"{{.ErrorCode}}","code":"upstream_maintenance"},"model":{{json .Model}}}`
 	operation_setting.GetGeneralSetting().UpstreamFailureStreamTemplate = "data: {\"choices\":[{\"delta\":{\"content\":\"休息一下，号池维护中\"}}]}\n\ndata: [DONE]\n\n"
 	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().UpstreamFailureMessage = oldMessage
 		operation_setting.GetGeneralSetting().UpstreamFailureJSONTemplate = oldJSONTemplate
 		operation_setting.GetGeneralSetting().UpstreamFailureStreamTemplate = oldStreamTemplate
 	})
@@ -283,9 +286,12 @@ func TestRenderUpstreamFailureResponse(t *testing.T) {
 }
 
 func TestRenderUpstreamFailureResponseInvalidJSONFallback(t *testing.T) {
+	oldMessage := operation_setting.GetGeneralSetting().UpstreamFailureMessage
 	oldJSONTemplate := operation_setting.GetGeneralSetting().UpstreamFailureJSONTemplate
+	operation_setting.GetGeneralSetting().UpstreamFailureMessage = ""
 	operation_setting.GetGeneralSetting().UpstreamFailureJSONTemplate = `not-json`
 	t.Cleanup(func() {
+		operation_setting.GetGeneralSetting().UpstreamFailureMessage = oldMessage
 		operation_setting.GetGeneralSetting().UpstreamFailureJSONTemplate = oldJSONTemplate
 	})
 
@@ -303,13 +309,16 @@ func TestRenderUpstreamFailureResponseInvalidJSONFallback(t *testing.T) {
 
 func TestRenderGlobalMaintenanceResponse(t *testing.T) {
 	oldEnabled := operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled
+	oldMessage := operation_setting.GetGeneralSetting().GlobalMaintenanceMessage
 	oldJSONTemplate := operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate
 	oldStreamTemplate := operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate
 	operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = true
+	operation_setting.GetGeneralSetting().GlobalMaintenanceMessage = ""
 	operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate = `{"error":{"message":"休息一下，号池维护中","type":"maintenance","code":"maintenance"},"model":{{json .Model}}}`
 	operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = "data: {\"choices\":[{\"delta\":{\"content\":\"休息一下，号池维护中\"}}]}\n\ndata: [DONE]\n\n"
 	t.Cleanup(func() {
 		operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = oldEnabled
+		operation_setting.GetGeneralSetting().GlobalMaintenanceMessage = oldMessage
 		operation_setting.GetGeneralSetting().GlobalMaintenanceJSONTemplate = oldJSONTemplate
 		operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = oldStreamTemplate
 	})
@@ -367,7 +376,7 @@ func TestRenderPlainMaintenanceResponseOpenAIStreamEscapesSSE(t *testing.T) {
 	require.Contains(t, result.Rendered, "data:")
 	require.Contains(t, result.Rendered, "data: [DONE]")
 	require.Contains(t, result.Rendered, `line1\n\ndata: injected\n[DONE]`)
-	require.Equal(t, 2, strings.Count(result.Rendered, "data: "))
+	require.Equal(t, 3, strings.Count(result.Rendered, "data: "))
 }
 
 func TestRenderPlainMaintenanceResponseGeminiNonStream(t *testing.T) {
@@ -471,11 +480,14 @@ func TestRenderGlobalMaintenanceResponseEmptyStreamTemplateFallback(t *testing.T
 
 func TestRenderGlobalMaintenanceResponseRejectsRawStreamModel(t *testing.T) {
 	oldEnabled := operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled
+	oldMessage := operation_setting.GetGeneralSetting().GlobalMaintenanceMessage
 	oldStreamTemplate := operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate
 	operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = true
+	operation_setting.GetGeneralSetting().GlobalMaintenanceMessage = ""
 	operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = "data: {{.Model}}\n\ndata: [DONE]\n\n"
 	t.Cleanup(func() {
 		operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = oldEnabled
+		operation_setting.GetGeneralSetting().GlobalMaintenanceMessage = oldMessage
 		operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = oldStreamTemplate
 	})
 
@@ -492,8 +504,10 @@ func TestRenderGlobalMaintenanceResponseRejectsRawStreamModel(t *testing.T) {
 
 func TestRenderGlobalMaintenanceResponseRejectsRawStreamModelWithModelJSON(t *testing.T) {
 	oldEnabled := operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled
+	oldMessage := operation_setting.GetGeneralSetting().GlobalMaintenanceMessage
 	oldStreamTemplate := operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate
 	operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = true
+	operation_setting.GetGeneralSetting().GlobalMaintenanceMessage = ""
 	operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = `data: {{printf "%s%s" .ModelJSON .Model}}
 
 data: [DONE]
@@ -501,6 +515,7 @@ data: [DONE]
 `
 	t.Cleanup(func() {
 		operation_setting.GetGeneralSetting().GlobalMaintenanceEnabled = oldEnabled
+		operation_setting.GetGeneralSetting().GlobalMaintenanceMessage = oldMessage
 		operation_setting.GetGeneralSetting().GlobalMaintenanceStreamTemplate = oldStreamTemplate
 	})
 

@@ -29,8 +29,14 @@ type GeneralSetting struct {
 	UpstreamErrorMessage             string  `json:"upstream_error_message"`
 	// 上游响应污染检测关键词，换行分隔，任意一条匹配即视为命中
 	UpstreamPollutionKeywords string `json:"upstream_pollution_keywords"`
+	// 是否启用保守的上游可疑污染组合规则检测
+	UpstreamSuspiciousPollutionDetectionEnabled bool `json:"upstream_suspicious_pollution_detection_enabled"`
 	// 命中污染后是否自动禁用渠道
 	UpstreamPollutionDisableChannel bool `json:"upstream_pollution_disable_channel"`
+	// 是否保存上游拦截审计明细
+	UpstreamInterceptAuditEnabled bool `json:"upstream_intercept_audit_enabled"`
+	// 上游拦截审计日志保留天数
+	UpstreamInterceptAuditRetentionDays int `json:"upstream_intercept_audit_retention_days"`
 	// 命中污染后返回给下游的纯文本自定义内容；后端自动包装为对应协议响应。
 	UpstreamPollutionMessage string `json:"upstream_pollution_message"`
 	// 命中污染后,非流式响应返回给下游的自定义模板（text/template 语法）。空 = 退回纯文本/硬编码 error 响应。
@@ -73,8 +79,11 @@ var generalSetting = GeneralSetting{
 	UpstreamPollutionKeywords: `通▸知◁群
 公益 token
 chatcmpl_local_`,
-	UpstreamPollutionDisableChannel: true,
-	UpstreamPollutionMessage:        "上游响应命中安全过滤，请稍后重试",
+	UpstreamPollutionDisableChannel:             true,
+	UpstreamSuspiciousPollutionDetectionEnabled: true,
+	UpstreamInterceptAuditEnabled:              false,
+	UpstreamInterceptAuditRetentionDays:        30,
+	UpstreamPollutionMessage:                    "上游响应命中安全过滤，请稍后重试",
 	UpstreamPollutionJSONTemplate:   "",
 	UpstreamPollutionStreamTemplate: "",
 	UpstreamFailureMessage:          "上游服务暂时不可用，请稍后重试",
@@ -134,6 +143,21 @@ func GetUpstreamPollutionKeywords() []string {
 // IsUpstreamPollutionDisableChannel 命中污染后是否自动禁用渠道
 func IsUpstreamPollutionDisableChannel() bool {
 	return generalSetting.UpstreamPollutionDisableChannel
+}
+
+func IsUpstreamSuspiciousPollutionDetectionEnabled() bool {
+	return generalSetting.UpstreamSuspiciousPollutionDetectionEnabled
+}
+
+func IsUpstreamInterceptAuditEnabled() bool {
+	return generalSetting.UpstreamInterceptAuditEnabled
+}
+
+func GetUpstreamInterceptAuditRetentionDays() int {
+	if generalSetting.UpstreamInterceptAuditRetentionDays <= 0 {
+		return 30
+	}
+	return generalSetting.UpstreamInterceptAuditRetentionDays
 }
 
 // GetUpstreamPollutionMessage 返回命中污染后给下游展示的纯文本自定义响应内容
@@ -206,7 +230,7 @@ func sanitizeCustomResponseMessage(message string, fallback string) string {
 		return r
 	}, strings.TrimSpace(message))
 	if message == "" {
-		return fallback
+		return ""
 	}
 	if len([]rune(message)) > 2000 {
 		return fallback

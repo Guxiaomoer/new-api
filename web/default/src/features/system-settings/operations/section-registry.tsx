@@ -79,6 +79,10 @@ const OPERATIONS_SECTIONS = [
             settings['general_setting.upstream_pollution_message'] ?? '',
           'general_setting.upstream_failure_message':
             settings['general_setting.upstream_failure_message'] ?? '',
+          'general_setting.upstream_intercept_audit_enabled':
+            settings['general_setting.upstream_intercept_audit_enabled'] ?? true,
+          'general_setting.upstream_intercept_audit_retention_days':
+            settings['general_setting.upstream_intercept_audit_retention_days'] ?? 30,
         }}
       />
     ),

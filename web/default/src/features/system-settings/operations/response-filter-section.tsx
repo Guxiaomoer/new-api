@@ -32,6 +32,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
@@ -53,6 +54,8 @@ const responseFilterSchema = z.object({
     upstream_pollution_disable_channel: z.boolean(),
     upstream_pollution_message: z.string(),
     upstream_failure_message: z.string(),
+    upstream_intercept_audit_enabled: z.boolean(),
+    upstream_intercept_audit_retention_days: z.number().min(0).max(365),
   }),
 })
 
@@ -63,6 +66,8 @@ type ResponseFilterOptionValues = {
   'general_setting.upstream_pollution_disable_channel': boolean
   'general_setting.upstream_pollution_message': string
   'general_setting.upstream_failure_message': string
+  'general_setting.upstream_intercept_audit_enabled': boolean
+  'general_setting.upstream_intercept_audit_retention_days': number
 }
 
 type ResponseFilterSectionProps = {
@@ -81,6 +86,10 @@ const toFormValues = (
       values['general_setting.upstream_pollution_message'],
     upstream_failure_message:
       values['general_setting.upstream_failure_message'],
+    upstream_intercept_audit_enabled:
+      values['general_setting.upstream_intercept_audit_enabled'],
+    upstream_intercept_audit_retention_days:
+      values['general_setting.upstream_intercept_audit_retention_days'],
   },
 })
 
@@ -95,6 +104,10 @@ const toOptionValues = (
     values.general_setting.upstream_pollution_message,
   'general_setting.upstream_failure_message':
     values.general_setting.upstream_failure_message,
+  'general_setting.upstream_intercept_audit_enabled':
+    values.general_setting.upstream_intercept_audit_enabled,
+  'general_setting.upstream_intercept_audit_retention_days':
+    values.general_setting.upstream_intercept_audit_retention_days,
 })
 
 const serializeValue = (value: unknown): string => {
@@ -263,6 +276,70 @@ export function ResponseFilterSection({
                     <FormDescription>
                       {t(
                         'Only enter the text you want users to see. The backend automatically wraps it for Claude, OpenAI, Gemini, stream, and non-stream requests.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='general_setting.upstream_intercept_audit_enabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>
+                        {t('Enable intercept audit logging')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'When enabled, the system records full request/response bodies for each intercepted upstream response. These logs are viewable in the Intercept Audit Logs page.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={updateOption.isPending}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='general_setting.upstream_intercept_audit_retention_days'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {t('Intercept audit log retention days')}
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={0}
+                        max={365}
+                        value={field.value ?? 30}
+                        onChange={(event) => {
+                          const val = parseInt(event.target.value, 10)
+                          field.onChange(Number.isNaN(val) ? 0 : val)
+                        }}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                        className='w-32'
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Number of days to keep intercept audit logs. Set to 0 to keep logs indefinitely. Old logs are cleaned up automatically.'
                       )}
                     </FormDescription>
                     <FormMessage />

@@ -200,7 +200,11 @@ func RenderGlobalMaintenanceResponse(c *gin.Context, isStream bool) *PollutionRe
 }
 
 func defaultGlobalMaintenanceResponse(isStream bool) *PollutionRenderResult {
-	return RenderPlainMaintenanceResponse(nil, isStream, operation_setting.GetGlobalMaintenanceMessage(), 0)
+	message := operation_setting.GetGlobalMaintenanceMessage()
+	if message == "" {
+		message = "休息一下，号池维护中"
+	}
+	return RenderPlainMaintenanceResponse(nil, isStream, message, 0)
 }
 
 // RenderPlainMaintenanceResponse 将后台配置的一句纯文本维护提示自动包装为协议兼容响应。
@@ -254,6 +258,9 @@ func isGeminiMaintenanceRequest(c *gin.Context, channelType int) bool {
 }
 
 func maintenanceModel(c *gin.Context) string {
+	if c == nil {
+		return "maintenance"
+	}
 	model := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
 	if model == "" {
 		return "maintenance"
@@ -337,14 +344,14 @@ func renderAnthropicMaintenanceStream(c *gin.Context, message string) *Pollution
 	messageStart := map[string]any{
 		"type": "message_start",
 		"message": map[string]any{
-			"id":              maintenanceRequestID(c, "msg"),
-			"type":            "message",
-			"role":            "assistant",
-			"model":           maintenanceModel(c),
-			"content":         []any{},
-			"stop_reason":     nil,
-			"stop_sequence":   nil,
-			"usage":           map[string]any{"input_tokens": 0, "output_tokens": 0},
+			"id":            maintenanceRequestID(c, "msg"),
+			"type":          "message",
+			"role":          "assistant",
+			"model":         maintenanceModel(c),
+			"content":       []any{},
+			"stop_reason":   nil,
+			"stop_sequence": nil,
+			"usage":         map[string]any{"input_tokens": 0, "output_tokens": 0},
 		},
 	}
 	events := []struct {
