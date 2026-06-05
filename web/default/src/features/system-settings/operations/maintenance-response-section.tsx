@@ -182,6 +182,7 @@ export function MaintenanceResponseSection({
     )
 
     if (updates.length === 0) {
+      form.reset(defaultValues)
       toast.info(i18next.t('No changes to save'))
       return
     }
