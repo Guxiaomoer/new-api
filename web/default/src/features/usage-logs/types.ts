@@ -93,11 +93,16 @@ export interface ChannelAffinityInfo {
 }
 
 export interface UpstreamPollutionInfo {
+  type?: string
+  rule?: string
   keyword?: string
+  reason?: string
   channel_id?: number
   channel_name?: string
   model?: string
   auto_disable_configured?: boolean
+  full_upstream_response_body?: string
+  safe_response_body?: string
 }
 
 export interface LogOtherData {

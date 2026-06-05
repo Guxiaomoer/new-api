@@ -683,6 +683,12 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 {pollutionInfo.model && (
                   <DetailRow label={t('Model')} value={pollutionInfo.model} mono />
                 )}
+                {pollutionInfo.rule && (
+                  <DetailRow label={t('Rule')} value={pollutionInfo.rule} mono />
+                )}
+                {pollutionInfo.reason && (
+                  <DetailRow label={t('Reason')} value={pollutionInfo.reason} />
+                )}
                 <DetailRow
                   label={t('Auto-disable')}
                   value={
@@ -691,6 +697,26 @@ export function DetailsDialog(props: DetailsDialogProps) {
                       : t('Not configured')
                   }
                 />
+                {pollutionInfo.full_upstream_response_body && (
+                  <div className='space-y-1.5'>
+                    <Label className='text-xs font-semibold'>
+                      {t('Upstream Response Body')}
+                    </Label>
+                    <pre className='bg-background/60 max-h-64 overflow-y-auto rounded border p-2 font-mono text-[11px] leading-relaxed break-words whitespace-pre-wrap'>
+                      {pollutionInfo.full_upstream_response_body}
+                    </pre>
+                  </div>
+                )}
+                {pollutionInfo.safe_response_body && (
+                  <div className='space-y-1.5'>
+                    <Label className='text-xs font-semibold'>
+                      {t('Safe Response Body')}
+                    </Label>
+                    <pre className='bg-background/60 max-h-64 overflow-y-auto rounded border p-2 font-mono text-[11px] leading-relaxed break-words whitespace-pre-wrap'>
+                      {pollutionInfo.safe_response_body}
+                    </pre>
+                  </div>
+                )}
               </DetailSection>
             )}
 

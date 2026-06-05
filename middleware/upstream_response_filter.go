@@ -241,13 +241,16 @@ func (w *pollutionFilterWriter) recordPollutionLog(hit service.UpstreamPollution
 	other := map[string]interface{}{
 		"admin_info": map[string]interface{}{
 			"upstream_pollution": map[string]interface{}{
-				"type":                    hit.Type,
-				"rule":                    hit.Rule,
-				"keyword":                 hit.Keyword,
-				"channel_id":              channelId,
-				"channel_name":            channelName,
-				"model":                   modelName,
-				"auto_disable_configured": operation_setting.IsUpstreamPollutionDisableChannel(),
+				"type":                        hit.Type,
+				"rule":                        hit.Rule,
+				"keyword":                     hit.Keyword,
+				"reason":                      hit.Reason,
+				"channel_id":                  channelId,
+				"channel_name":                channelName,
+				"model":                       modelName,
+				"auto_disable_configured":     operation_setting.IsUpstreamPollutionDisableChannel(),
+				"full_upstream_response_body": upstreamBody,
+				"safe_response_body":          safeBody,
 			},
 		},
 	}
