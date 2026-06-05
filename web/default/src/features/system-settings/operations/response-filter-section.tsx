@@ -296,7 +296,7 @@ export function ResponseFilterSection({
                       </FormLabel>
                       <FormDescription>
                         {t(
-                          'When enabled, the system records full request/response bodies for each intercepted upstream response. These logs are viewable in the Intercept Audit Logs page.'
+                          'When enabled, the system records full request/response bodies for each intercepted upstream response. You can view captured upstream and safe responses in the existing usage log details.'
                         )}
                       </FormDescription>
                     </SettingsSwitchContent>
@@ -339,7 +339,7 @@ export function ResponseFilterSection({
                     </FormControl>
                     <FormDescription>
                       {t(
-                        'Number of days to keep intercept audit logs. Set to 0 to keep logs indefinitely. Old logs are cleaned up automatically.'
+                        'Number of days to keep intercept audit logs. Set to 0 to keep logs indefinitely.'
                       )}
                     </FormDescription>
                     <FormMessage />

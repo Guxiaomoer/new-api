@@ -4575,6 +4575,10 @@
     "Configured": "已配置",
     "Not configured": "未配置",
     "Auto-disable": "自动禁用",
-    "Upstream Pollution Hit": "上游污染命中"
+    "Upstream Pollution Hit": "上游污染命中",
+    "Enable intercept audit logging": "启用拦截审计记录",
+    "When enabled, the system records full request/response bodies for each intercepted upstream response. You can view captured upstream and safe responses in the existing usage log details.": "启用后，系统会记录每次被拦截上游响应的完整请求/响应正文。可在现有用量日志详情中查看捕获到的上游原文和安全返回。",
+    "Intercept audit log retention days": "拦截审计日志保留天数",
+    "Number of days to keep intercept audit logs. Set to 0 to keep logs indefinitely.": "拦截审计日志保留天数。设置为 0 表示永久保留。"
   }
 }
