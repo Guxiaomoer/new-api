@@ -48,17 +48,54 @@ import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const responseFilterSchema = z.object({
-  'general_setting.upstream_pollution_keywords': z.string(),
-  'general_setting.upstream_pollution_disable_channel': z.boolean(),
-  'general_setting.upstream_pollution_message': z.string(),
-  'general_setting.upstream_failure_message': z.string(),
+  general_setting: z.object({
+    upstream_pollution_keywords: z.string(),
+    upstream_pollution_disable_channel: z.boolean(),
+    upstream_pollution_message: z.string(),
+    upstream_failure_message: z.string(),
+  }),
 })
 
 type ResponseFilterFormValues = z.infer<typeof responseFilterSchema>
 
-type ResponseFilterSectionProps = {
-  defaultValues: ResponseFilterFormValues
+type ResponseFilterOptionValues = {
+  'general_setting.upstream_pollution_keywords': string
+  'general_setting.upstream_pollution_disable_channel': boolean
+  'general_setting.upstream_pollution_message': string
+  'general_setting.upstream_failure_message': string
 }
+
+type ResponseFilterSectionProps = {
+  defaultValues: ResponseFilterOptionValues
+}
+
+const toFormValues = (
+  values: ResponseFilterOptionValues
+): ResponseFilterFormValues => ({
+  general_setting: {
+    upstream_pollution_keywords:
+      values['general_setting.upstream_pollution_keywords'],
+    upstream_pollution_disable_channel:
+      values['general_setting.upstream_pollution_disable_channel'],
+    upstream_pollution_message:
+      values['general_setting.upstream_pollution_message'],
+    upstream_failure_message:
+      values['general_setting.upstream_failure_message'],
+  },
+})
+
+const toOptionValues = (
+  values: ResponseFilterFormValues
+): ResponseFilterOptionValues => ({
+  'general_setting.upstream_pollution_keywords':
+    values.general_setting.upstream_pollution_keywords,
+  'general_setting.upstream_pollution_disable_channel':
+    values.general_setting.upstream_pollution_disable_channel,
+  'general_setting.upstream_pollution_message':
+    values.general_setting.upstream_pollution_message,
+  'general_setting.upstream_failure_message':
+    values.general_setting.upstream_failure_message,
+})
 
 const serializeValue = (value: unknown): string => {
   if (typeof value === 'boolean') return String(value)
@@ -71,21 +108,24 @@ export function ResponseFilterSection({
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
 
+  const formDefaultValues = toFormValues(defaultValues)
+
   const form = useForm<ResponseFilterFormValues>({
     resolver: zodResolver(responseFilterSchema),
-    defaultValues,
+    defaultValues: formDefaultValues,
   })
 
-  useResetForm(form, defaultValues)
+  useResetForm(form, formDefaultValues)
 
   const onSubmit = async (values: ResponseFilterFormValues) => {
-    const updates = Object.entries(values).filter(
+    const optionValues = toOptionValues(values)
+    const updates = Object.entries(optionValues).filter(
       ([key, value]) =>
-        value !== defaultValues[key as keyof ResponseFilterFormValues]
+        value !== defaultValues[key as keyof ResponseFilterOptionValues]
     )
 
     if (updates.length === 0) {
-      form.reset(defaultValues)
+      form.reset(formDefaultValues)
       toast.info(i18next.t('No changes to save'))
       return
     }

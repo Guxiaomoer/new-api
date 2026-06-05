@@ -62,15 +62,42 @@ import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const maintenanceResponseSchema = z.object({
-  'general_setting.global_maintenance_enabled': z.boolean(),
-  'general_setting.global_maintenance_message': z.string(),
+  general_setting: z.object({
+    global_maintenance_enabled: z.boolean(),
+    global_maintenance_message: z.string(),
+  }),
 })
 
 type MaintenanceResponseFormValues = z.infer<typeof maintenanceResponseSchema>
 
-type MaintenanceResponseSectionProps = {
-  defaultValues: MaintenanceResponseFormValues
+type MaintenanceResponseOptionValues = {
+  'general_setting.global_maintenance_enabled': boolean
+  'general_setting.global_maintenance_message': string
 }
+
+type MaintenanceResponseSectionProps = {
+  defaultValues: MaintenanceResponseOptionValues
+}
+
+const toFormValues = (
+  values: MaintenanceResponseOptionValues
+): MaintenanceResponseFormValues => ({
+  general_setting: {
+    global_maintenance_enabled:
+      values['general_setting.global_maintenance_enabled'],
+    global_maintenance_message:
+      values['general_setting.global_maintenance_message'],
+  },
+})
+
+const toOptionValues = (
+  values: MaintenanceResponseFormValues
+): MaintenanceResponseOptionValues => ({
+  'general_setting.global_maintenance_enabled':
+    values.general_setting.global_maintenance_enabled,
+  'general_setting.global_maintenance_message':
+    values.general_setting.global_maintenance_message,
+})
 
 type ChannelMaintenanceSettings = {
   channel_maintenance_enabled?: boolean
@@ -121,12 +148,14 @@ export function MaintenanceResponseSection({
     useState(false)
   const [channelMaintenanceMessage, setChannelMaintenanceMessage] = useState('')
 
+  const formDefaultValues = toFormValues(defaultValues)
+
   const form = useForm<MaintenanceResponseFormValues>({
     resolver: zodResolver(maintenanceResponseSchema),
-    defaultValues,
+    defaultValues: formDefaultValues,
   })
 
-  useResetForm(form, defaultValues)
+  useResetForm(form, formDefaultValues)
 
   const { data: channelsData, isLoading: isChannelsLoading } = useQuery({
     queryKey: channelsQueryKeys.list({ page_size: 200, id_sort: true }),
@@ -176,13 +205,14 @@ export function MaintenanceResponseSection({
   })
 
   const onSubmit = async (values: MaintenanceResponseFormValues) => {
-    const updates = Object.entries(values).filter(
+    const optionValues = toOptionValues(values)
+    const updates = Object.entries(optionValues).filter(
       ([key, value]) =>
-        value !== defaultValues[key as keyof MaintenanceResponseFormValues]
+        value !== defaultValues[key as keyof MaintenanceResponseOptionValues]
     )
 
     if (updates.length === 0) {
-      form.reset(defaultValues)
+      form.reset(formDefaultValues)
       toast.info(i18next.t('No changes to save'))
       return
     }
