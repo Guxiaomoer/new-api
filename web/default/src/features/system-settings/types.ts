@@ -282,14 +282,8 @@ export type OperationsSettings = {
   AutomaticRetryStatusCodes: string
   'general_setting.upstream_pollution_keywords': string
   'general_setting.upstream_pollution_disable_channel': boolean
-  'general_setting.upstream_pollution_json_template': string
-  'general_setting.upstream_pollution_stream_template': string
-  'general_setting.upstream_failure_json_template': string
-  'general_setting.upstream_failure_stream_template': string
   'general_setting.global_maintenance_enabled': boolean
   'general_setting.global_maintenance_message': string
-  'general_setting.global_maintenance_json_template': string
-  'general_setting.global_maintenance_stream_template': string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
   SMTPServer: string

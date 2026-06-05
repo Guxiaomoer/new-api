@@ -16,12 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useMemo, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import { getChannels, updateChannel } from '@/features/channels/api'
+import { channelsQueryKeys } from '@/features/channels/lib'
+import type { Channel } from '@/features/channels/types'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -31,6 +37,14 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
@@ -50,8 +64,6 @@ import { useUpdateOption } from '../hooks/use-update-option'
 const maintenanceResponseSchema = z.object({
   'general_setting.global_maintenance_enabled': z.boolean(),
   'general_setting.global_maintenance_message': z.string(),
-  'general_setting.global_maintenance_json_template': z.string(),
-  'general_setting.global_maintenance_stream_template': z.string(),
 })
 
 type MaintenanceResponseFormValues = z.infer<typeof maintenanceResponseSchema>
@@ -60,9 +72,42 @@ type MaintenanceResponseSectionProps = {
   defaultValues: MaintenanceResponseFormValues
 }
 
+type ChannelMaintenanceSettings = {
+  channel_maintenance_enabled?: boolean
+  channel_maintenance_message?: string
+}
+
 const serializeValue = (value: unknown): string => {
   if (typeof value === 'boolean') return String(value)
   return String(value ?? '')
+}
+
+const parseChannelSettings = (settings: string): Record<string, unknown> => {
+  if (!settings.trim()) return {}
+  try {
+    const parsed = JSON.parse(settings)
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
+  } catch {
+    return {}
+  }
+  return {}
+}
+
+const getChannelMaintenanceSettings = (
+  channel?: Channel
+): ChannelMaintenanceSettings => {
+  if (!channel) return {}
+  const settings = parseChannelSettings(channel.settings || '{}')
+  return {
+    channel_maintenance_enabled:
+      settings.channel_maintenance_enabled === true,
+    channel_maintenance_message:
+      typeof settings.channel_maintenance_message === 'string'
+        ? settings.channel_maintenance_message
+        : '',
+  }
 }
 
 export function MaintenanceResponseSection({
@@ -70,6 +115,11 @@ export function MaintenanceResponseSection({
 }: MaintenanceResponseSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const queryClient = useQueryClient()
+  const [selectedChannelId, setSelectedChannelId] = useState('')
+  const [channelMaintenanceEnabled, setChannelMaintenanceEnabled] =
+    useState(false)
+  const [channelMaintenanceMessage, setChannelMaintenanceMessage] = useState('')
 
   const form = useForm<MaintenanceResponseFormValues>({
     resolver: zodResolver(maintenanceResponseSchema),
@@ -77,6 +127,53 @@ export function MaintenanceResponseSection({
   })
 
   useResetForm(form, defaultValues)
+
+  const { data: channelsData, isLoading: isChannelsLoading } = useQuery({
+    queryKey: channelsQueryKeys.list({ page_size: 200, id_sort: true }),
+    queryFn: () => getChannels({ page_size: 200, id_sort: true }),
+  })
+
+  const channels = useMemo(
+    () => channelsData?.data?.items ?? [],
+    [channelsData?.data?.items]
+  )
+
+  const selectedChannel = useMemo(
+    () => channels.find((channel) => String(channel.id) === selectedChannelId),
+    [channels, selectedChannelId]
+  )
+
+  const channelMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedChannel) return null
+      const settings = parseChannelSettings(selectedChannel.settings || '{}')
+      settings.channel_maintenance_enabled = channelMaintenanceEnabled
+      if (channelMaintenanceEnabled) {
+        settings.channel_maintenance_message = channelMaintenanceMessage
+      } else {
+        delete settings.channel_maintenance_message
+      }
+      return updateChannel(selectedChannel.id, {
+        settings: JSON.stringify(settings),
+      })
+    },
+    onSuccess: async (response) => {
+      if (response && !response.success) {
+        toast.error(response.message || i18next.t('Save failed'))
+        return
+      }
+      toast.success(i18next.t('Saved successfully'))
+      await queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      if (selectedChannel) {
+        await queryClient.invalidateQueries({
+          queryKey: channelsQueryKeys.detail(selectedChannel.id),
+        })
+      }
+    },
+    onError: () => {
+      toast.error(i18next.t('Save failed'))
+    },
+  })
 
   const onSubmit = async (values: MaintenanceResponseFormValues) => {
     const updates = Object.entries(values).filter(
@@ -92,6 +189,15 @@ export function MaintenanceResponseSection({
     for (const [key, value] of updates) {
       await updateOption.mutateAsync({ key, value: serializeValue(value) })
     }
+  }
+
+  const handleChannelChange = (value: string | null) => {
+    const nextValue = value ?? ''
+    setSelectedChannelId(nextValue)
+    const channel = channels.find((item) => String(item.id) === nextValue)
+    const settings = getChannelMaintenanceSettings(channel)
+    setChannelMaintenanceEnabled(settings.channel_maintenance_enabled === true)
+    setChannelMaintenanceMessage(settings.channel_maintenance_message || '')
   }
 
   const isDirty = form.formState.isDirty
@@ -159,7 +265,7 @@ export function MaintenanceResponseSection({
                     </FormControl>
                     <FormDescription>
                       {t(
-                        'This configured message is the default source for global maintenance, channel maintenance fallback, and failed advanced-template fallback. The backend automatically wraps it for Claude, OpenAI, Gemini, stream, and non-stream requests.'
+                        'Enter plain text only. The backend automatically wraps it for Claude, OpenAI, Gemini, stream, and non-stream requests.'
                       )}
                     </FormDescription>
                     <FormMessage />
@@ -169,69 +275,106 @@ export function MaintenanceResponseSection({
             </SettingsFormGridItem>
 
             <SettingsFormGridItem span='full'>
-              <FormField
-                control={form.control}
-                name='general_setting.global_maintenance_json_template'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      {t('Global maintenance non-stream template')}
-                    </FormLabel>
-                    <FormControl>
-                      <Textarea
-                        rows={8}
-                        placeholder={t(
-                          'Optional advanced JSON template. Leave empty to use the default maintenance message above. Example: {"error":{"message":"Service is under maintenance","type":"maintenance","code":"maintenance"}}'
-                        )}
-                        value={field.value ?? ''}
-                        onChange={(event) => field.onChange(event.target.value)}
-                        name={field.name}
-                        onBlur={field.onBlur}
-                        ref={field.ref}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t(
-                        'Used only when global maintenance is enabled and the default maintenance message is empty. Must render valid JSON. Variables: {{.Model}} {{.RequestId}} {{.Created}} {{.Timestamp}}. Use {{json .Model}} inside JSON strings.'
-                      )}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </SettingsFormGridItem>
+              <div className='rounded-lg border border-border/60 bg-muted/10 p-4'>
+                <div className='mb-4 space-y-1'>
+                  <h3 className='text-sm font-medium'>
+                    {t('Channel maintenance response')}
+                  </h3>
+                  <p className='text-muted-foreground text-sm'>
+                    {t(
+                      'Select a channel to return the maintenance message only when requests are routed to that channel. Other channels continue normally.'
+                    )}
+                  </p>
+                </div>
 
-            <SettingsFormGridItem span='full'>
-              <FormField
-                control={form.control}
-                name='general_setting.global_maintenance_stream_template'
-                render={({ field }) => (
+                <div className='space-y-4'>
                   <FormItem>
-                    <FormLabel>
-                      {t('Global maintenance stream template')}
-                    </FormLabel>
-                    <FormControl>
-                      <Textarea
-                        rows={8}
-                        placeholder={t(
-                          'Optional advanced SSE template. Leave empty to use the default maintenance message above. Example:\ndata: {"choices":[{"delta":{"content":"Service is under maintenance"}}]}\n\ndata: [DONE]\n\n'
-                        )}
-                        value={field.value ?? ''}
-                        onChange={(event) => field.onChange(event.target.value)}
-                        name={field.name}
-                        onBlur={field.onBlur}
-                        ref={field.ref}
-                      />
-                    </FormControl>
+                    <FormLabel>{t('Select channel')}</FormLabel>
+                    <Select
+                      value={selectedChannelId}
+                      onValueChange={handleChannelChange}
+                      disabled={isChannelsLoading || channelMutation.isPending}
+                    >
+                      <SelectTrigger className='w-full'>
+                        <SelectValue
+                          placeholder={
+                            isChannelsLoading
+                              ? t('Loading channels...')
+                              : t('Choose a channel')
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent align='start'>
+                        <SelectGroup>
+                          {channels.map((channel) => (
+                            <SelectItem
+                              key={channel.id}
+                              value={String(channel.id)}
+                            >
+                              #{channel.id} {channel.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
                     <FormDescription>
                       {t(
-                        'Used only when global maintenance is enabled and the default maintenance message is empty. Include complete SSE frames yourself. If you put Model into SSE JSON, use {{json .Model}} or {{.ModelJSON}} instead of raw {{.Model}}.'
+                        'This saves into the selected channel settings. It does not enable global maintenance.'
                       )}
                     </FormDescription>
-                    <FormMessage />
                   </FormItem>
-                )}
-              />
+
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>
+                        {t('Enable maintenance for this channel')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'When enabled, requests routed to this channel return HTTP 200 with the maintenance message and will not call upstream.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <Switch
+                      checked={channelMaintenanceEnabled}
+                      onCheckedChange={setChannelMaintenanceEnabled}
+                      disabled={!selectedChannel || channelMutation.isPending}
+                    />
+                  </SettingsSwitchItem>
+
+                  <FormItem>
+                    <FormLabel>{t('Maintenance message')}</FormLabel>
+                    <Textarea
+                      rows={3}
+                      placeholder={t(
+                        'Leave empty to use the default maintenance message above.'
+                      )}
+                      value={channelMaintenanceMessage}
+                      onChange={(event) =>
+                        setChannelMaintenanceMessage(event.target.value)
+                      }
+                      disabled={!selectedChannel || channelMutation.isPending}
+                    />
+                    <FormDescription>
+                      {t(
+                        'Enter plain text only. The backend automatically wraps it for Claude, OpenAI, Gemini, stream, and non-stream requests.'
+                      )}
+                    </FormDescription>
+                  </FormItem>
+
+                  <div className='flex justify-end'>
+                    <Button
+                      type='button'
+                      onClick={() => channelMutation.mutate()}
+                      disabled={!selectedChannel || channelMutation.isPending}
+                    >
+                      {channelMutation.isPending
+                        ? t('Saving...')
+                        : t('Save channel maintenance')}
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </SettingsFormGridItem>
           </SettingsFormGrid>
         </SettingsForm>

@@ -75,14 +75,6 @@ const OPERATIONS_SECTIONS = [
             settings['general_setting.upstream_pollution_keywords'] ?? '',
           'general_setting.upstream_pollution_disable_channel':
             settings['general_setting.upstream_pollution_disable_channel'] ?? true,
-          'general_setting.upstream_pollution_json_template':
-            settings['general_setting.upstream_pollution_json_template'] ?? '',
-          'general_setting.upstream_pollution_stream_template':
-            settings['general_setting.upstream_pollution_stream_template'] ?? '',
-          'general_setting.upstream_failure_json_template':
-            settings['general_setting.upstream_failure_json_template'] ?? '',
-          'general_setting.upstream_failure_stream_template':
-            settings['general_setting.upstream_failure_stream_template'] ?? '',
         }}
       />
     ),
@@ -97,10 +89,6 @@ const OPERATIONS_SECTIONS = [
             settings['general_setting.global_maintenance_enabled'] ?? false,
           'general_setting.global_maintenance_message':
             settings['general_setting.global_maintenance_message'] ?? '',
-          'general_setting.global_maintenance_json_template':
-            settings['general_setting.global_maintenance_json_template'] ?? '',
-          'general_setting.global_maintenance_stream_template':
-            settings['general_setting.global_maintenance_stream_template'] ?? '',
         }}
       />
     ),
