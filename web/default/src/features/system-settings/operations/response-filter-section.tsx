@@ -52,6 +52,7 @@ const responseFilterSchema = z.object({
   general_setting: z.object({
     upstream_pollution_keywords: z.string(),
     upstream_pollution_disable_channel: z.boolean(),
+    upstream_custom_response_http_200_enabled: z.boolean(),
     upstream_pollution_message: z.string(),
     upstream_failure_message: z.string(),
     upstream_intercept_audit_enabled: z.boolean(),
@@ -64,6 +65,7 @@ type ResponseFilterFormValues = z.infer<typeof responseFilterSchema>
 type ResponseFilterOptionValues = {
   'general_setting.upstream_pollution_keywords': string
   'general_setting.upstream_pollution_disable_channel': boolean
+  'general_setting.upstream_custom_response_http_200_enabled': boolean
   'general_setting.upstream_pollution_message': string
   'general_setting.upstream_failure_message': string
   'general_setting.upstream_intercept_audit_enabled': boolean
@@ -82,6 +84,8 @@ const toFormValues = (
       values['general_setting.upstream_pollution_keywords'],
     upstream_pollution_disable_channel:
       values['general_setting.upstream_pollution_disable_channel'],
+    upstream_custom_response_http_200_enabled:
+      values['general_setting.upstream_custom_response_http_200_enabled'],
     upstream_pollution_message:
       values['general_setting.upstream_pollution_message'],
     upstream_failure_message:
@@ -100,6 +104,8 @@ const toOptionValues = (
     values.general_setting.upstream_pollution_keywords,
   'general_setting.upstream_pollution_disable_channel':
     values.general_setting.upstream_pollution_disable_channel,
+  'general_setting.upstream_custom_response_http_200_enabled':
+    values.general_setting.upstream_custom_response_http_200_enabled,
   'general_setting.upstream_pollution_message':
     values.general_setting.upstream_pollution_message,
   'general_setting.upstream_failure_message':
@@ -176,6 +182,34 @@ export function ResponseFilterSection({
                       <FormDescription>
                         {t(
                           'When enabled, a response matching pollution keywords will disable the corresponding channel so you can replace the key manually.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={updateOption.isPending}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='general_setting.upstream_custom_response_http_200_enabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>
+                        {t('Return HTTP 200 for custom upstream messages')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'When enabled, custom upstream pollution/failure messages are returned with HTTP 200. Disable it to keep the custom body but return the real error status such as 502.'
                         )}
                       </FormDescription>
                     </SettingsSwitchContent>

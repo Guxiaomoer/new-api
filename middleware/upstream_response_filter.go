@@ -282,7 +282,7 @@ func (w *pollutionFilterWriter) writeReplacementResponse(hit service.UpstreamPol
 	return w.writeFallbackErrorResponse(isStream), isStream
 }
 
-// writeTemplatedResponse 写用户自定义模板渲染后的响应（HTTP 200,假装正常应答）
+// writeTemplatedResponse 写用户自定义模板渲染后的响应。默认 HTTP 200 兼容旧行为；关闭开关后返回 502。
 func (w *pollutionFilterWriter) writeTemplatedResponse(result *service.PollutionRenderResult, isStream bool) {
 	headers := w.ResponseWriter.Header()
 	if isStream {
@@ -292,7 +292,11 @@ func (w *pollutionFilterWriter) writeTemplatedResponse(result *service.Pollution
 	} else {
 		headers.Set("Content-Type", "application/json; charset=utf-8")
 	}
-	w.ResponseWriter.WriteHeader(http.StatusOK)
+	statusCode := http.StatusOK
+	if !operation_setting.IsUpstreamCustomResponseHTTP200Enabled() {
+		statusCode = http.StatusBadGateway
+	}
+	w.ResponseWriter.WriteHeader(statusCode)
 	if _, err := w.ResponseWriter.Write([]byte(result.Rendered)); err != nil {
 		logger.LogError(w.ctx, fmt.Sprintf("[upstream_pollution] write templated response failed: %s", err.Error()))
 	}
@@ -322,7 +326,11 @@ func (w *pollutionFilterWriter) writeFallbackErrorResponse(isStream bool) string
 		headers.Set("Content-Type", "text/event-stream; charset=utf-8")
 		headers.Set("Cache-Control", "no-cache")
 		headers.Set("Connection", "keep-alive")
-		w.ResponseWriter.WriteHeader(http.StatusOK)
+		statusCode := http.StatusOK
+		if !operation_setting.IsUpstreamCustomResponseHTTP200Enabled() {
+			statusCode = http.StatusBadGateway
+		}
+		w.ResponseWriter.WriteHeader(statusCode)
 		body := fmt.Sprintf("data: %s\n\ndata: [DONE]\n\n", string(payloadBytes))
 		if _, err := w.ResponseWriter.Write([]byte(body)); err != nil {
 			logger.LogError(w.ctx, fmt.Sprintf("[upstream_pollution] write replacement failed: %s", err.Error()))

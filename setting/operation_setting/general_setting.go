@@ -24,9 +24,11 @@ type GeneralSetting struct {
 	// 自定义货币符号，用于 CUSTOM 展示类型
 	CustomCurrencySymbol string `json:"custom_currency_symbol"`
 	// 自定义货币与美元汇率（1 USD = X Custom）
-	CustomCurrencyExchangeRate       float64 `json:"custom_currency_exchange_rate"`
-	UpstreamRateLimitCooldownMessage string  `json:"upstream_rate_limit_cooldown_message"`
-	UpstreamErrorMessage             string  `json:"upstream_error_message"`
+	CustomCurrencyExchangeRate              float64 `json:"custom_currency_exchange_rate"`
+	UpstreamRateLimitCooldownMessage        string  `json:"upstream_rate_limit_cooldown_message"`
+	UpstreamErrorMessage                    string  `json:"upstream_error_message"`
+	// 命中上游污染或上游故障并使用自定义消息体时，是否强制返回 HTTP 200（兼容旧行为）。关闭后返回真实错误状态。
+	UpstreamCustomResponseHTTP200Enabled bool `json:"upstream_custom_response_http_200_enabled"`
 	// 上游响应污染检测关键词，换行分隔，任意一条匹配即视为命中
 	UpstreamPollutionKeywords string `json:"upstream_pollution_keywords"`
 	// 是否启用保守的上游可疑污染组合规则检测
@@ -75,7 +77,8 @@ var generalSetting = GeneralSetting{
 	CustomCurrencySymbol:             "¤",
 	CustomCurrencyExchangeRate:       1.0,
 	UpstreamRateLimitCooldownMessage: "上游服务触发冷却限制，请稍后重试",
-	UpstreamErrorMessage:             "上游服务返回错误，请稍后重试",
+	UpstreamErrorMessage:                    "上游服务返回错误，请稍后重试",
+	UpstreamCustomResponseHTTP200Enabled:    true,
 	UpstreamPollutionKeywords: `通▸知◁群
 公益 token
 chatcmpl_local_`,
@@ -116,6 +119,10 @@ func GetUpstreamErrorMessage() string {
 		generalSetting.UpstreamErrorMessage,
 		"上游服务返回错误，请稍后重试",
 	)
+}
+
+func IsUpstreamCustomResponseHTTP200Enabled() bool {
+	return generalSetting.UpstreamCustomResponseHTTP200Enabled
 }
 
 // GetUpstreamPollutionKeywords 返回去重去空后的污染检测关键词切片

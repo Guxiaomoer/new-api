@@ -282,6 +282,7 @@ export type OperationsSettings = {
   AutomaticRetryStatusCodes: string
   'general_setting.upstream_pollution_keywords': string
   'general_setting.upstream_pollution_disable_channel': boolean
+  'general_setting.upstream_custom_response_http_200_enabled': boolean
   'general_setting.upstream_pollution_message': string
   'general_setting.upstream_failure_message': string
   'general_setting.upstream_intercept_audit_enabled': boolean

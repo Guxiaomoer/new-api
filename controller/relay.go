@@ -93,7 +93,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			if relayFormat != types.RelayFormatOpenAIRealtime && !c.Writer.Written() {
 				isStream := common.GetContextKeyBool(c, constant.ContextKeyIsStream)
 				if rendered := service.RenderUpstreamFailureResponse(c, newAPIError, isStream); rendered != nil {
-					writeUpstreamFailureResponse(c, rendered.Rendered, isStream)
+					writeUpstreamFailureResponse(c, rendered.Rendered, isStream, newAPIError.StatusCode)
 					return
 				}
 			}
@@ -254,17 +254,23 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 }
 
-func writeUpstreamFailureResponse(c *gin.Context, rendered string, isStream bool) {
+func writeUpstreamFailureResponse(c *gin.Context, rendered string, isStream bool, statusCode int) {
 	headers := c.Writer.Header()
 	headers.Del("Content-Length")
 	headers.Del("Content-Encoding")
+	if operation_setting.IsUpstreamCustomResponseHTTP200Enabled() {
+		statusCode = http.StatusOK
+	}
+	if statusCode <= 0 {
+		statusCode = http.StatusBadGateway
+	}
 	if isStream {
 		headers.Set("Content-Type", "text/event-stream; charset=utf-8")
-		c.String(http.StatusOK, rendered)
+		c.String(statusCode, rendered)
 		return
 	}
 	headers.Set("Content-Type", "application/json; charset=utf-8")
-	c.String(http.StatusOK, rendered)
+	c.String(statusCode, rendered)
 }
 
 var upgrader = websocket.Upgrader{
