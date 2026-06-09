@@ -218,6 +218,18 @@ func SetApiRouter(router *gin.Engine) {
 			performanceRoute.GET("/logs", controller.GetLogFiles)
 			performanceRoute.DELETE("/logs", controller.CleanupLogFiles)
 		}
+		communityMonitorRoute := apiRouter.Group("/community_monitor")
+		communityMonitorRoute.Use(middleware.RootAuth())
+		{
+			communityMonitorRoute.GET("/config", controller.GetCommunityMonitorConfig)
+			communityMonitorRoute.PUT("/config", controller.UpdateCommunityMonitorConfig)
+			communityMonitorRoute.GET("/status", controller.GetCommunityMonitorStatus)
+			communityMonitorRoute.GET("/results", controller.GetCommunityMonitorResults)
+			communityMonitorRoute.POST("/scan", controller.ScanCommunityMonitor)
+			communityMonitorRoute.POST("/detect", controller.DetectCommunityMonitor)
+			communityMonitorRoute.POST("/collector/start", controller.StartCommunityMonitorCollector)
+			communityMonitorRoute.POST("/collector/stop", controller.StopCommunityMonitorCollector)
+		}
 		ratioSyncRoute := apiRouter.Group("/ratio_sync")
 		ratioSyncRoute.Use(middleware.RootAuth())
 		{

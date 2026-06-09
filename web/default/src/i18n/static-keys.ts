@@ -443,6 +443,8 @@ export const STATIC_I18N_KEYS = [
   'Sidebar Personal Settings',
   'Customize sidebar display content',
   'Reset to Default',
+  'Community Monitor',
+  'Community monitoring and secret detection',
 
   // Available models
   'Available Models',

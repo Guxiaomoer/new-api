@@ -48,6 +48,7 @@ import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
 import { Route as AuthenticatedInterceptLogsIndexRouteImport } from './routes/_authenticated/intercept-logs/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
+import { Route as AuthenticatedCommunityMonitorIndexRouteImport } from './routes/_authenticated/community-monitor/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
 import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authenticated/models/$section'
@@ -275,6 +276,12 @@ const AuthenticatedDashboardIndexRoute =
     path: '/dashboard/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCommunityMonitorIndexRoute =
+  AuthenticatedCommunityMonitorIndexRouteImport.update({
+    id: '/community-monitor/',
+    path: '/community-monitor/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedChannelsIndexRoute =
   AuthenticatedChannelsIndexRouteImport.update({
     id: '/channels/',
@@ -439,6 +446,7 @@ export interface FileRoutesByFullPath {
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
+  '/community-monitor/': typeof AuthenticatedCommunityMonitorIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/intercept-logs/': typeof AuthenticatedInterceptLogsIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
@@ -499,6 +507,7 @@ export interface FileRoutesByTo {
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
+  '/community-monitor': typeof AuthenticatedCommunityMonitorIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/intercept-logs': typeof AuthenticatedInterceptLogsIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
@@ -563,6 +572,7 @@ export interface FileRoutesById {
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
+  '/_authenticated/community-monitor/': typeof AuthenticatedCommunityMonitorIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/intercept-logs/': typeof AuthenticatedInterceptLogsIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
@@ -626,6 +636,7 @@ export interface FileRouteTypes {
     | '/models/$section'
     | '/usage-logs/$section'
     | '/channels/'
+    | '/community-monitor/'
     | '/dashboard/'
     | '/intercept-logs/'
     | '/keys/'
@@ -686,6 +697,7 @@ export interface FileRouteTypes {
     | '/models/$section'
     | '/usage-logs/$section'
     | '/channels'
+    | '/community-monitor'
     | '/dashboard'
     | '/intercept-logs'
     | '/keys'
@@ -749,6 +761,7 @@ export interface FileRouteTypes {
     | '/_authenticated/models/$section'
     | '/_authenticated/usage-logs/$section'
     | '/_authenticated/channels/'
+    | '/_authenticated/community-monitor/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/intercept-logs/'
     | '/_authenticated/keys/'
@@ -1074,6 +1087,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/community-monitor/': {
+      id: '/_authenticated/community-monitor/'
+      path: '/community-monitor'
+      fullPath: '/community-monitor/'
+      preLoaderRoute: typeof AuthenticatedCommunityMonitorIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/channels/': {
       id: '/_authenticated/channels/'
       path: '/channels'
@@ -1324,6 +1344,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
+  AuthenticatedCommunityMonitorIndexRoute: typeof AuthenticatedCommunityMonitorIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedInterceptLogsIndexRoute: typeof AuthenticatedInterceptLogsIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
@@ -1349,6 +1370,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
+  AuthenticatedCommunityMonitorIndexRoute:
+    AuthenticatedCommunityMonitorIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedInterceptLogsIndexRoute: AuthenticatedInterceptLogsIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,

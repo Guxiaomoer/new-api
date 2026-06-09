@@ -27,6 +27,7 @@ import {
   ListTodo,
   MessageSquare,
   Radio,
+  Radar,
   Settings,
   Ticket,
   User,
@@ -120,6 +121,11 @@ export function useSidebarData(): SidebarData {
             title: t('Channels'),
             url: '/channels',
             icon: Radio,
+          },
+          {
+            title: t('Community Monitor'),
+            url: '/community-monitor',
+            icon: Radar,
           },
           {
             title: t('Models'),
