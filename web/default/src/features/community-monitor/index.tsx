@@ -143,8 +143,42 @@ export function CommunityMonitor({ embedded = false }: { embedded?: boolean }) {
     [results]
   )
 
+  const actions = (
+    <div className='flex flex-wrap gap-2'>
+      <Button variant='outline' onClick={() => invalidate()} disabled={isBusy}>
+        <RefreshCcw /> {t('Refresh')}
+      </Button>
+      <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+        <Save /> {t('Save')}
+      </Button>
+      <Button
+        variant='outline'
+        onClick={() => actionMutation.mutate('scan')}
+        disabled={actionMutation.isPending}
+      >
+        <Play /> {t('Scan')}
+      </Button>
+      <Button
+        variant='outline'
+        onClick={() => actionMutation.mutate('detect')}
+        disabled={actionMutation.isPending}
+      >
+        <ShieldCheck /> {t('Detect')}
+      </Button>
+      <Button
+        variant='destructive'
+        onClick={() => actionMutation.mutate(status?.running ? 'stop' : 'start')}
+        disabled={actionMutation.isPending}
+      >
+        {status?.running ? <Square /> : <Play />}
+        {status?.running ? t('Stop Collector') : t('Start Collector')}
+      </Button>
+    </div>
+  )
+
   const content = (
     <div className='space-y-4'>
+      {actions}
       <StatusHeader status={status} />
 
       <div className='grid gap-4 xl:grid-cols-[390px_1fr]'>
@@ -440,36 +474,7 @@ export function CommunityMonitor({ embedded = false }: { embedded?: boolean }) {
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Community Monitor')}</SectionPageLayout.Title>
-      <SectionPageLayout.Actions>
-        <Button variant='outline' onClick={() => invalidate()} disabled={isBusy}>
-          <RefreshCcw /> {t('Refresh')}
-        </Button>
-        <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-          <Save /> {t('Save')}
-        </Button>
-        <Button
-          variant='outline'
-          onClick={() => actionMutation.mutate('scan')}
-          disabled={actionMutation.isPending}
-        >
-          <Play /> {t('Scan')}
-        </Button>
-        <Button
-          variant='outline'
-          onClick={() => actionMutation.mutate('detect')}
-          disabled={actionMutation.isPending}
-        >
-          <ShieldCheck /> {t('Detect')}
-        </Button>
-        <Button
-          variant='destructive'
-          onClick={() => actionMutation.mutate(status?.running ? 'stop' : 'start')}
-          disabled={actionMutation.isPending}
-        >
-          {status?.running ? <Square /> : <Play />}
-          {status?.running ? t('Stop Collector') : t('Start Collector')}
-        </Button>
-      </SectionPageLayout.Actions>
+      <SectionPageLayout.Actions>{actions}</SectionPageLayout.Actions>
       <SectionPageLayout.Content>{content}</SectionPageLayout.Content>
     </SectionPageLayout>
   )
