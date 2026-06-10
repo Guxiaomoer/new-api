@@ -523,7 +523,11 @@ var fetchSharkeyChatMessagesImpl = func(apiURL, accessToken, roomID string, limi
 		return nil, fmt.Errorf("Sharkey API returned status %d", res.StatusCode)
 	}
 	var messages []sharkeyChatMessage
-	if err := common.Unmarshal(io.LimitReader(res.Body, communityMonitorMaxBodyBytes), &messages); err != nil {
+	respBody, err := io.ReadAll(io.LimitReader(res.Body, communityMonitorMaxBodyBytes))
+	if err != nil {
+		return nil, err
+	}
+	if err := common.Unmarshal(respBody, &messages); err != nil {
 		return nil, err
 	}
 	return messages, nil
