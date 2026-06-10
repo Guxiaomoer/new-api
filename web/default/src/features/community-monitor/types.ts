@@ -22,6 +22,7 @@ export interface CommunityMonitorConfig {
   detection_base_url: string
   config_path?: string
   state_path?: string
+  api_type?: string
 }
 
 export interface CommunityMonitorProgress {
@@ -58,6 +59,7 @@ export interface CommunityMonitorState {
   next_run_at: string
   last_error: string
   collector_running: boolean
+  last_message_id?: string
 }
 
 export interface CommunityMonitorRule {

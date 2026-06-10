@@ -82,6 +82,18 @@ type CommunityMonitorProgress struct {
 	ScanEndedAt   string  `json:"scan_ended_at"`
 }
 
+type sharkeyChatMessage struct {
+	ID         string `json:"id"`
+	CreatedAt  string `json:"createdAt"`
+	Text       string `json:"text"`
+	FromUserID string `json:"fromUserId"`
+	FromUser   struct {
+		ID       string `json:"id"`
+		Username string `json:"username"`
+	} `json:"fromUser"`
+	ToRoomID string `json:"toRoomId"`
+}
+
 type CommunityMonitorResult struct {
 	Fingerprint string `json:"fingerprint"`
 	MaskedValue string `json:"masked_value"`
@@ -95,17 +107,18 @@ type CommunityMonitorResult struct {
 }
 
 type CommunityMonitorState struct {
-	Progress        CommunityMonitorProgress `json:"progress"`
-	Results         []CommunityMonitorResult `json:"results"`
-	MessageCount    int                      `json:"message_count"`
-	CandidateCount  int                      `json:"candidate_count"`
-	DetectedCount   int                      `json:"detected_count"`
-	ValidCount      int                      `json:"valid_count"`
-	FailureCache    int                      `json:"failure_cache"`
-	LastRunAt       string                   `json:"last_run_at"`
-	NextRunAt       string                   `json:"next_run_at"`
-	LastError       string                   `json:"last_error"`
-	CollectorRunning bool                    `json:"collector_running"`
+	Progress         CommunityMonitorProgress `json:"progress"`
+	Results          []CommunityMonitorResult `json:"results"`
+	MessageCount     int                      `json:"message_count"`
+	CandidateCount   int                      `json:"candidate_count"`
+	DetectedCount    int                      `json:"detected_count"`
+	ValidCount       int                      `json:"valid_count"`
+	FailureCache     int                      `json:"failure_cache"`
+	LastRunAt        string                   `json:"last_run_at"`
+	NextRunAt        string                   `json:"next_run_at"`
+	LastError        string                   `json:"last_error"`
+	CollectorRunning bool                     `json:"collector_running"`
+	LastMessageID    string                   `json:"last_message_id"`
 }
 
 type CommunityMonitorStatus struct {
@@ -325,6 +338,11 @@ func scanCommunityMonitorLocked(config CommunityMonitorConfig, state *CommunityM
 	if err := validateCommunityMonitorConfig(config); err != nil {
 		return err
 	}
+	// Check if we should use Sharkey chat API
+	if config.RoomID != "" && config.SourceURL != "" && config.AccessToken != "" {
+		return scanSharkeyChatRoom(config, state)
+	}
+	// Fallback to HTML scraping
 	scanURL := config.RoomURL
 	if scanURL == "" {
 		scanURL = config.SourceURL
@@ -375,6 +393,140 @@ func scanCommunityMonitorLocked(config CommunityMonitorConfig, state *CommunityM
 	state.NextRunAt = now.Add(time.Duration(config.CollectorIntervalMinutes) * time.Minute).Format(time.RFC3339)
 	recalculateCommunityMonitorState(state)
 	return nil
+}
+
+func scanSharkeyChatRoom(config CommunityMonitorConfig, state *CommunityMonitorState) error {
+	sourceURL := strings.TrimRight(config.SourceURL, "/")
+	apiURL := sourceURL + "/api/chat/messages/room-timeline"
+	if err := validateOutboundURL(apiURL); err != nil {
+		return err
+	}
+	pattern, err := regexp.Compile(config.ExtractRegex)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	existing := map[string]struct{}{}
+	for _, result := range state.Results {
+		existing[result.Fingerprint] = struct{}{}
+	}
+	progress := CommunityMonitorProgress{ScanStartedAt: now.Format(time.RFC3339)}
+	totalMessages := 0
+	totalHits := 0
+	totalDuplicates := 0
+	// Fetch messages with pagination using sinceId for incremental updates
+	limit := config.PageSize
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > communityMonitorMaxPageSize {
+		limit = communityMonitorMaxPageSize
+	}
+	sinceID := state.LastMessageID
+	for {
+		messages, err := fetchSharkeyChatMessages(apiURL, config.AccessToken, config.RoomID, limit, sinceID)
+		if err != nil {
+			return err
+		}
+		if len(messages) == 0 {
+			break
+		}
+		for _, msg := range messages {
+			totalMessages++
+			text := msg.Text
+			if text == "" {
+				continue
+			}
+			matches := pattern.FindAllString(text, -1)
+			for _, match := range matches {
+				totalHits++
+				if config.Query != "" && !strings.Contains(match, config.Query) {
+					continue
+				}
+				fingerprint := fingerprintSecret(match)
+				if _, ok := existing[fingerprint]; ok {
+					totalDuplicates++
+					continue
+				}
+				existing[fingerprint] = struct{}{}
+				state.Results = append(state.Results, CommunityMonitorResult{
+					Fingerprint: fingerprint,
+					MaskedValue: maskSecret(match),
+					Value:       match,
+					Kind:        classifyCommunitySecret(match),
+					Status:      "candidate",
+					Reason:      "matched from chat message",
+					Source:      fmt.Sprintf("chat:%s@%s", msg.FromUser.Username, msg.ToRoomID),
+					CreatedAt:   msg.CreatedAt,
+				})
+			}
+		}
+		// Update lastMessageID to the newest message
+		if messages[0].ID != "" {
+			sinceID = messages[0].ID
+		}
+		if len(messages) < limit {
+			break
+		}
+		if totalMessages >= config.ScanLimit {
+			break
+		}
+	}
+	state.LastMessageID = sinceID
+	progress.Read = totalMessages
+	progress.Pages = 1
+	progress.Checked = totalMessages
+	progress.Hits = totalHits
+	progress.Duplicates = totalDuplicates
+	progress.ScanEndedAt = time.Now().Format(time.RFC3339)
+	progress.Percent = 100
+	state.Progress = progress
+	state.MessageCount = totalMessages
+	state.LastRunAt = progress.ScanEndedAt
+	state.LastError = ""
+	state.NextRunAt = now.Add(time.Duration(config.CollectorIntervalMinutes) * time.Minute).Format(time.RFC3339)
+	recalculateCommunityMonitorState(state)
+	return nil
+}
+
+func fetchSharkeyChatMessages(apiURL, accessToken, roomID string, limit int, sinceID string) ([]sharkeyChatMessage, error) {
+	return fetchSharkeyChatMessagesImpl(apiURL, accessToken, roomID, limit, sinceID)
+}
+
+var fetchSharkeyChatMessagesImpl = func(apiURL, accessToken, roomID string, limit int, sinceID string) ([]sharkeyChatMessage, error) {
+	client := newCommunityMonitorHTTPClient()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	reqBody := map[string]interface{}{
+		"roomId": roomID,
+		"limit":  limit,
+	}
+	if sinceID != "" {
+		reqBody["sinceId"] = sinceID
+	}
+	bodyBytes, err := common.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, strings.NewReader(string(bodyBytes)))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, fmt.Errorf("Sharkey API returned status %d", res.StatusCode)
+	}
+	var messages []sharkeyChatMessage
+	if err := common.Unmarshal(io.LimitReader(res.Body, communityMonitorMaxBodyBytes), &messages); err != nil {
+		return nil, err
+	}
+	return messages, nil
 }
 
 func detectCommunityMonitorLocked(config CommunityMonitorConfig, state *CommunityMonitorState) {
