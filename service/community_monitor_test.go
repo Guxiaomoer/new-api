@@ -28,6 +28,12 @@ func TestCommunityMonitorExtractsAndMasksCandidates(t *testing.T) {
 	}
 	defer func() { fetchCommunityMonitorBody = oldFetch }()
 
+	oldDetect := detectCommunitySecretImpl
+	detectCommunitySecretImpl = func(config CommunityMonitorConfig, secret string) (string, string) {
+		return "reachable", "mock detection passed"
+	}
+	defer func() { detectCommunitySecretImpl = oldDetect }()
+
 	if err := scanCommunityMonitorLocked(config, &state); err != nil {
 		t.Fatal(err)
 	}
@@ -39,6 +45,12 @@ func TestCommunityMonitorExtractsAndMasksCandidates(t *testing.T) {
 	}
 	if state.Results[0].Fingerprint == "" {
 		t.Fatal("expected fingerprint")
+	}
+	if state.Results[0].Status != "reachable" {
+		t.Fatalf("expected status 'reachable', got '%s'", state.Results[0].Status)
+	}
+	if state.Results[0].DetectedAt == "" {
+		t.Fatal("expected detected_at to be set")
 	}
 	publicResults := publicCommunityMonitorResults(state.Results)
 	if publicResults[0].Value != "" {
@@ -115,11 +127,23 @@ func TestSharkeyChatRoomScan(t *testing.T) {
 	}
 	defer func() { fetchSharkeyChatMessagesImpl = oldImpl }()
 
+	oldDetect := detectCommunitySecretImpl
+	detectCommunitySecretImpl = func(config CommunityMonitorConfig, secret string) (string, string) {
+		return "reachable", "mock detection passed"
+	}
+	defer func() { detectCommunitySecretImpl = oldDetect }()
+
 	if err := scanCommunityMonitorLocked(config, &state); err != nil {
 		t.Fatal(err)
 	}
 	if len(state.Results) != 2 {
 		t.Fatalf("expected 2 results, got %d", len(state.Results))
+	}
+	if state.Results[0].Status != "reachable" {
+		t.Fatalf("expected result status 'reachable', got '%s'", state.Results[0].Status)
+	}
+	if state.Results[1].Status != "reachable" {
+		t.Fatalf("expected result status 'reachable', got '%s'", state.Results[1].Status)
 	}
 	if state.LastMessageID != "msg1" {
 		t.Fatalf("expected lastMessageID to be 'msg1', got '%s'", state.LastMessageID)
@@ -129,5 +153,61 @@ func TestSharkeyChatRoomScan(t *testing.T) {
 	}
 	if state.Progress.Read != 3 {
 		t.Fatalf("expected 3 messages read, got %d", state.Progress.Read)
+	}
+}
+
+func TestSharkeyChatRoomScanFiltersInvalidKeys(t *testing.T) {
+	tmp := t.TempDir()
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldWd)
+
+	config := defaultCommunityMonitorConfig()
+	config.SourceURL = "https://93.184.216.34"
+	config.RoomID = "testroom"
+	config.AccessToken = "test-token"
+	config.Query = "sk-"
+	config.ExtractRegex = `sk-[A-Za-z0-9_-]{8,}`
+	state := CommunityMonitorState{}
+
+	oldImpl := fetchSharkeyChatMessagesImpl
+	fetchSharkeyChatMessagesImpl = func(apiURL, accessToken, roomID string, limit int, sinceID string) ([]sharkeyChatMessage, error) {
+		return []sharkeyChatMessage{
+			{ID: "msg1", CreatedAt: "2026-06-10T00:00:00Z", Text: "invalid sk-abcdefghijklmnopqrstuvwxyz", FromUserID: "user1", ToRoomID: "testroom"},
+			{ID: "msg2", CreatedAt: "2026-06-10T00:01:00Z", Text: "valid sk-BIAzRn6jCszMRuF4RM6chp608jJkxfqL", FromUserID: "user2", ToRoomID: "testroom"},
+		}, nil
+	}
+	defer func() { fetchSharkeyChatMessagesImpl = oldImpl }()
+
+	oldDetect := detectCommunitySecretImpl
+	detectCommunitySecretImpl = func(config CommunityMonitorConfig, secret string) (string, string) {
+		if secret == "sk-abcdefghijklmnopqrstuvwxyz" {
+			return "auth_failed", "key is invalid"
+		}
+		return "reachable", "key is valid"
+	}
+	defer func() { detectCommunitySecretImpl = oldDetect }()
+
+	if err := scanCommunityMonitorLocked(config, &state); err != nil {
+		t.Fatal(err)
+	}
+	// Only the valid key should be recorded
+	if len(state.Results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(state.Results))
+	}
+	if state.Results[0].Value != "sk-BIAzRn6jCszMRuF4RM6chp608jJkxfqL" {
+		t.Fatalf("expected valid key to be recorded, got '%s'", state.Results[0].Value)
+	}
+	if state.Results[0].Status != "reachable" {
+		t.Fatalf("expected status 'reachable', got '%s'", state.Results[0].Status)
+	}
+	// Invalid key should increment failure cache
+	if state.FailureCache != 1 {
+		t.Fatalf("expected 1 failure cache, got %d", state.FailureCache)
 	}
 }

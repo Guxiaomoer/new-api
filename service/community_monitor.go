@@ -374,14 +374,20 @@ func scanCommunityMonitorLocked(config CommunityMonitorConfig, state *CommunityM
 			continue
 		}
 		existing[fingerprint] = struct{}{}
+		status, reason := detectCommunitySecret(config, match)
+		if status != "reachable" {
+			state.FailureCache++
+			continue
+		}
 		state.Results = append(state.Results, CommunityMonitorResult{
 			Fingerprint: fingerprint,
 			MaskedValue: maskSecret(match),
 			Value:       match,
 			Kind:        classifyCommunitySecret(match),
-			Status:      "candidate",
-			Reason:      "matched regex",
+			Status:      status,
+			Reason:      reason,
 			Source:      scanURL,
+			DetectedAt:  now.Format(time.RFC3339),
 			CreatedAt:   now.Format(time.RFC3339),
 		})
 	}
@@ -449,14 +455,20 @@ func scanSharkeyChatRoom(config CommunityMonitorConfig, state *CommunityMonitorS
 					continue
 				}
 				existing[fingerprint] = struct{}{}
+				status, reason := detectCommunitySecret(config, match)
+				if status != "reachable" {
+					state.FailureCache++
+					continue
+				}
 				state.Results = append(state.Results, CommunityMonitorResult{
 					Fingerprint: fingerprint,
 					MaskedValue: maskSecret(match),
 					Value:       match,
 					Kind:        classifyCommunitySecret(match),
-					Status:      "candidate",
-					Reason:      "matched from chat message",
+					Status:      status,
+					Reason:      reason,
 					Source:      fmt.Sprintf("chat:%s@%s", msg.FromUser.Username, msg.ToRoomID),
+					DetectedAt:  now.Format(time.RFC3339),
 					CreatedAt:   msg.CreatedAt,
 				})
 			}
@@ -534,24 +546,37 @@ var fetchSharkeyChatMessagesImpl = func(apiURL, accessToken, roomID string, limi
 }
 
 func detectCommunityMonitorLocked(config CommunityMonitorConfig, state *CommunityMonitorState) {
+	validResults := make([]CommunityMonitorResult, 0, len(state.Results))
 	for i := range state.Results {
-		result := &state.Results[i]
+		result := state.Results[i]
 		if result.Value == "" || result.Status == "reachable" {
+			validResults = append(validResults, result)
 			continue
 		}
 		if result.DetectedAt != "" {
 			if detectedAt, err := time.Parse(time.RFC3339, result.DetectedAt); err == nil && time.Since(detectedAt) < communityMonitorDetectGap {
+				validResults = append(validResults, result)
 				continue
 			}
 		}
 		status, reason := detectCommunitySecret(config, result.Value)
-		result.Status = status
-		result.Reason = reason
-		result.DetectedAt = time.Now().Format(time.RFC3339)
+		if status == "reachable" {
+			result.Status = status
+			result.Reason = reason
+			result.DetectedAt = time.Now().Format(time.RFC3339)
+			validResults = append(validResults, result)
+		} else {
+			state.FailureCache++
+		}
 	}
+	state.Results = validResults
 }
 
 func detectCommunitySecret(config CommunityMonitorConfig, secret string) (string, string) {
+	return detectCommunitySecretImpl(config, secret)
+}
+
+var detectCommunitySecretImpl = func(config CommunityMonitorConfig, secret string) (string, string) {
 	if !strings.HasPrefix(secret, "sk-") {
 		return "not_openai_like", "only OpenAI-like keys support metadata detection"
 	}
