@@ -449,6 +449,10 @@ func UpdateCompletionRatioByJSONString(jsonStr string) error {
 func GetCompletionRatio(name string) float64 {
 	name = FormatMatchingModelName(name)
 
+	if ratio, ok := getConfiguredCompletionRatioOverride(name); ok {
+		return ratio
+	}
+
 	if strings.Contains(name, "/") {
 		if ratio, ok := completionRatioMap.Get(name); ok {
 			return ratio
@@ -471,6 +475,13 @@ type CompletionRatioInfo struct {
 
 func GetCompletionRatioInfo(name string) CompletionRatioInfo {
 	name = FormatMatchingModelName(name)
+
+	if ratio, ok := getConfiguredCompletionRatioOverride(name); ok {
+		return CompletionRatioInfo{
+			Ratio:  ratio,
+			Locked: false,
+		}
+	}
 
 	if strings.Contains(name, "/") {
 		if ratio, ok := completionRatioMap.Get(name); ok {
@@ -500,6 +511,32 @@ func GetCompletionRatioInfo(name string) CompletionRatioInfo {
 		Ratio:  hardCodedRatio,
 		Locked: false,
 	}
+}
+
+func getConfiguredCompletionRatioOverride(name string) (float64, bool) {
+	if !shouldCompletionRatioOverrideHardcoded(name) {
+		return 0, false
+	}
+
+	ratio, ok := completionRatioMap.Get(name)
+	if !ok {
+		return 0, false
+	}
+
+	defaultRatio, hasDefault := defaultCompletionRatio[name]
+	if hasDefault && ratio == defaultRatio {
+		return 0, false
+	}
+
+	return ratio, true
+}
+
+func shouldCompletionRatioOverrideHardcoded(name string) bool {
+	return strings.HasPrefix(name, "gpt-") ||
+		strings.HasPrefix(name, "o1") ||
+		strings.HasPrefix(name, "o3") ||
+		name == "chatgpt-4o-latest" ||
+		strings.Contains(name, "claude-")
 }
 
 func getHardcodedCompletionModelRatio(name string) (float64, bool) {
