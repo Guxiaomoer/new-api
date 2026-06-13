@@ -385,6 +385,9 @@ func (user *User) Insert(inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
+	if inviterId != 0 {
+		user.InviterId = inviterId
+	}
 	//user.SetAccessToken(common.GetUUID())
 	user.AffCode = common.GetRandomString(4)
 
@@ -444,6 +447,9 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
+	if inviterId != 0 {
+		user.InviterId = inviterId
+	}
 	user.AffCode = common.GetRandomString(4)
 
 	// 初始化用户设置
