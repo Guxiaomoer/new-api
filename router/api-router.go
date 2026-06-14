@@ -218,6 +218,11 @@ func SetApiRouter(router *gin.Engine) {
 			performanceRoute.GET("/logs", controller.GetLogFiles)
 			performanceRoute.DELETE("/logs", controller.CleanupLogFiles)
 		}
+		serverMonitorRoute := apiRouter.Group("/server-monitor")
+		serverMonitorRoute.Use(middleware.RootAuth())
+		{
+			serverMonitorRoute.GET("/overview", controller.GetServerMonitorOverview)
+		}
 		communityMonitorRoute := apiRouter.Group("/community_monitor")
 		communityMonitorRoute.Use(middleware.RootAuth())
 		{
