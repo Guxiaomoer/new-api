@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 var (
@@ -21,6 +22,10 @@ var (
 	}
 	slugRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 )
+
+func characterCount(value string) int {
+	return utf8.RuneCountInString(value)
+}
 
 func parseJSONArray(jsonStr string, typeName string) ([]map[string]interface{}, error) {
 	var list []map[string]interface{}
@@ -172,11 +177,11 @@ func validateAnnouncements(announcementsStr string) error {
 				}
 			}
 		}
-		if len(content) > 500 {
+		if characterCount(content) > 500 {
 			return fmt.Errorf("第%d个公告的内容长度不能超过500字符", i+1)
 		}
 		if extra, exists := ann["extra"]; exists {
-			if extraStr, ok := extra.(string); ok && len(extraStr) > 200 {
+			if extraStr, ok := extra.(string); ok && characterCount(extraStr) > 200 {
 				return fmt.Errorf("第%d个公告的说明长度不能超过200字符", i+1)
 			}
 		}
