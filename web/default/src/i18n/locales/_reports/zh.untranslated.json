@@ -1,0 +1,10 @@
+{
+  "Enter plain text only. The backend automatically wraps it for Claude, OpenAI, Gemini, stream, and non-stream requests.": "只需要填写纯文本。后端会自动按 Claude、OpenAI、Gemini，以及流式/非流式请求包装成合法响应。",
+  "If any keyword is found in the upstream response, the system returns your configured message automatically and handles the channel according to the auto-disable switch. No JSON or SSE template is required.": "只要上游响应中出现任一关键词，系统会自动返回你配置的提示内容，并按上方开关处理渠道。不需要填写 JSON 或 SSE 模板。",
+  "Only enter the text you want users to see. The backend automatically wraps it for Claude, OpenAI, Gemini, stream, and non-stream requests.": "只填写你想让用户看到的文字即可。后端会自动按 Claude、OpenAI、Gemini，以及流式/非流式请求包装。",
+  "Return HTTP 200 for custom upstream messages": "自定义上游提示返回 HTTP 200",
+  "When enabled, all relay requests return your configured HTTP 200 maintenance response before billing, channel selection, and upstream calls. OpenAI Realtime websocket is not affected.": "开启后，所有中转请求会在计费、渠道选择和请求上游之前，直接返回你配置的 HTTP 200 维护响应。OpenAI Realtime WebSocket 不受影响。",
+  "When enabled, custom upstream pollution/failure messages are returned with HTTP 200. Disable it to keep the custom body but return the real error status such as 502.": "开启后，上游污染/故障的自定义提示会以 HTTP 200 返回。关闭后仍保留自定义消息体，但返回真实错误状态，例如 502。",
+  "When enabled, requests routed to this channel return HTTP 200 with the maintenance message and will not call upstream.": "开启后，路由到此渠道的请求会直接返回 HTTP 200 维护提示，不再请求上游。",
+  "Runtime Sys": "Runtime Sys"
+}

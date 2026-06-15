@@ -4671,6 +4671,8 @@
     "API access is normal": "API access is normal",
     "API access restricted successfully": "API access restricted successfully",
     "API access restored successfully": "API access restored successfully",
-    "Confirm Restrict": "Confirm Restrict"
+    "Confirm Restrict": "Confirm Restrict",
+    "Global API Restriction Message": "Global API Restriction Message",
+    "Default message shown to users when their API access is restricted. Can be overridden per user.": "Default message shown to users when their API access is restricted. Can be overridden per user."
   }
 }

@@ -4671,6 +4671,8 @@
     "API access is normal": "API 访问正常",
     "API access restricted successfully": "已限制 API 访问",
     "API access restored successfully": "已解除 API 限制",
-    "Confirm Restrict": "确认限制"
+    "Confirm Restrict": "确认限制",
+    "Global API Restriction Message": "全局 API 限制提示",
+    "Default message shown to users when their API access is restricted. Can be overridden per user.": "用户 API 被限制时显示的默认提示，可在单个用户中覆盖。"
   }
 }

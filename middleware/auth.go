@@ -210,6 +210,9 @@ func TokenOrUserAuth() func(c *gin.Context) {
 func defaultApiRestrictedMessage(message string) string {
 	message = strings.TrimSpace(message)
 	if message == "" {
+		message = strings.TrimSpace(common.GlobalApiRestrictionMessage)
+	}
+	if message == "" {
 		return "该用户已被限制使用 API，请联系管理员"
 	}
 	return message

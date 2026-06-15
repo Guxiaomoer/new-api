@@ -53,6 +53,7 @@ const quotaSchema = z.object({
   PreConsumedQuota: z.coerce.number().min(0),
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
+  GlobalApiRestrictionMessage: z.string(),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
@@ -69,6 +70,7 @@ type FlatQuotaSettings = {
   PreConsumedQuota: number
   QuotaForInviter: number
   QuotaForInvitee: number
+  GlobalApiRestrictionMessage: string
   TopUpLink: string
   'general_setting.docs_link': string
   'quota_setting.enable_free_model_pre_consume': boolean
@@ -81,6 +83,7 @@ const flattenQuotaValues = (
   PreConsumedQuota: values.PreConsumedQuota,
   QuotaForInviter: values.QuotaForInviter,
   QuotaForInvitee: values.QuotaForInvitee,
+  GlobalApiRestrictionMessage: values.GlobalApiRestrictionMessage,
   TopUpLink: values.TopUpLink,
   'general_setting.docs_link': values.general_setting.docs_link,
   'quota_setting.enable_free_model_pre_consume':
@@ -269,6 +272,32 @@ export function QuotaSettingsSection({
                 </FormItem>
               )}
             />
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='GlobalApiRestrictionMessage'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Global API Restriction Message')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={field.value ?? ''}
+                        onChange={(event) => field.onChange(event.target.value)}
+                        placeholder={t('Your API access has been restricted. Please contact an administrator.')}
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Default message shown to users when their API access is restricted. Can be overridden per user.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGridItem>
 
             <SettingsFormGridItem span='full'>
               <FormField
