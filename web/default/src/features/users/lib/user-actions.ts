@@ -29,6 +29,8 @@ const ACTION_MESSAGES: Record<ManageUserAction, string> = {
   demote: 'User demoted to regular user successfully',
   delete: 'User deleted successfully',
   add_quota: 'Quota adjusted successfully',
+  restrict_api: 'API access restricted successfully',
+  unrestrict_api: 'API access restored successfully',
 }
 
 /**

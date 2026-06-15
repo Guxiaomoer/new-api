@@ -895,6 +895,7 @@ func ManageUser(c *gin.Context) {
 		}
 
 		myRole := c.GetInt("role")
+		myId := c.GetInt("id")
 		var users []model.User
 		if err := model.DB.Where("id IN ?", ids).Find(&users).Error; err != nil {
 			common.ApiError(c, err)
@@ -905,11 +906,12 @@ func ManageUser(c *gin.Context) {
 			return
 		}
 		for _, target := range users {
-			if target.Role == common.RoleRootUser {
+			// Root 用户可以限制/解除限制自己的 API（测试用途）
+			if target.Role == common.RoleRootUser && target.Id != myId {
 				common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
 				return
 			}
-			if !canManageTargetRole(myRole, target.Role) {
+			if target.Id != myId && !canManageTargetRole(myRole, target.Role) {
 				common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
 				return
 			}
