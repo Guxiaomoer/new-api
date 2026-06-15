@@ -2,7 +2,6 @@ package model
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -82,7 +81,7 @@ func (user *User) SetAccessToken(token string) {
 func (user *User) GetSetting() dto.UserSetting {
 	setting := dto.UserSetting{}
 	if user.Setting != "" {
-		err := json.Unmarshal([]byte(user.Setting), &setting)
+		err := common.Unmarshal([]byte(user.Setting), &setting)
 		if err != nil {
 			common.SysLog("failed to unmarshal setting: " + err.Error())
 		}
@@ -91,12 +90,44 @@ func (user *User) GetSetting() dto.UserSetting {
 }
 
 func (user *User) SetSetting(setting dto.UserSetting) {
-	settingBytes, err := json.Marshal(setting)
+	settingBytes, err := common.Marshal(setting)
 	if err != nil {
 		common.SysLog("failed to marshal setting: " + err.Error())
 		return
 	}
 	user.Setting = string(settingBytes)
+}
+
+func UpdateUsersApiRestriction(ids []int, restricted bool, message string) error {
+	if len(ids) == 0 {
+		return errors.New("用户 ID 不能为空")
+	}
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var users []User
+		if err := tx.Where("id IN ?", ids).Find(&users).Error; err != nil {
+			return err
+		}
+		if len(users) != len(ids) {
+			return errors.New("部分用户不存在")
+		}
+
+		for i := range users {
+			setting := users[i].GetSetting()
+			setting.ApiRestricted = restricted
+			if restricted {
+				setting.ApiRestrictedMessage = strings.TrimSpace(message)
+			} else {
+				setting.ApiRestrictedMessage = ""
+			}
+			users[i].SetSetting(setting)
+
+			if err := tx.Model(&User{}).Where("id = ?", users[i].Id).Update("setting", users[i].Setting).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // 根据用户角色生成默认的边栏配置
@@ -152,7 +183,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 	// 普通用户不包含admin区域
 
 	// 转换为JSON字符串
-	configBytes, err := json.Marshal(defaultConfig)
+	configBytes, err := common.Marshal(defaultConfig)
 	if err != nil {
 		common.SysLog("生成默认边栏配置失败: " + err.Error())
 		return ""

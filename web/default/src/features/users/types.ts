@@ -50,6 +50,7 @@ export const userSchema = z.object({
   aff_history_quota: z.number().optional(),
   inviter_id: z.number().optional(),
   linux_do_id: z.string().optional(),
+  setting: z.string().optional(),
   status: userStatusSchema,
   role: userRoleSchema,
   created_at: z.number().optional(),
@@ -115,6 +116,8 @@ export type ManageUserAction =
   | 'disable'
   | 'delete'
   | 'add_quota'
+  | 'restrict_api'
+  | 'unrestrict_api'
 
 export type QuotaAdjustMode = 'add' | 'subtract' | 'override'
 
@@ -123,6 +126,18 @@ export interface ManageUserQuotaPayload {
   action: 'add_quota'
   mode: QuotaAdjustMode
   value: number
+}
+
+export interface BatchApiRestrictionPayload {
+  ids: number[]
+  action: 'restrict_api' | 'unrestrict_api'
+  message?: string
+}
+
+export interface UserSetting {
+  api_restricted?: boolean
+  api_restricted_message?: string
+  [key: string]: unknown
 }
 
 // ============================================================================

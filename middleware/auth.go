@@ -207,6 +207,14 @@ func TokenOrUserAuth() func(c *gin.Context) {
 	}
 }
 
+func defaultApiRestrictedMessage(message string) string {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return "该用户已被限制使用 API，请联系管理员"
+	}
+	return message
+}
+
 // TokenAuthReadOnly 宽松版本的令牌认证中间件，用于只读查询接口。
 // 只验证令牌 key 是否存在，不检查令牌状态、过期时间和额度。
 // 即使令牌已过期、已耗尽或已禁用，也允许访问。
@@ -263,6 +271,11 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 				"message": common.TranslateMessage(c, i18n.MsgAuthUserBanned),
 			})
 			c.Abort()
+			return
+		}
+		userSetting := userCache.GetSetting()
+		if userSetting.ApiRestricted {
+			abortWithOpenAiMessage(c, http.StatusForbidden, defaultApiRestrictedMessage(userSetting.ApiRestrictedMessage), types.ErrorCodeAccessDenied)
 			return
 		}
 
@@ -374,6 +387,12 @@ func TokenAuth() func(c *gin.Context) {
 		userEnabled := userCache.Status == common.UserStatusEnabled
 		if !userEnabled {
 			abortWithOpenAiMessage(c, http.StatusForbidden, common.TranslateMessage(c, i18n.MsgAuthUserBanned))
+			return
+		}
+
+		userSetting := userCache.GetSetting()
+		if userSetting.ApiRestricted {
+			abortWithOpenAiMessage(c, http.StatusForbidden, defaultApiRestrictedMessage(userSetting.ApiRestrictedMessage), types.ErrorCodeAccessDenied)
 			return
 		}
 

@@ -4655,6 +4655,22 @@
     "Total Users": "总用户数",
     "User Capacity": "用户容量",
     "Warnings and suggestions": "警告和建议",
-    "Runtime Sys": "运行时系统内存"
+    "Runtime Sys": "运行时系统内存",
+    "API Allowed": "API 可用",
+    "API Restricted": "API 已限制",
+    "Restrict API": "限制 API",
+    "Unrestrict API": "解除 API 限制",
+    "Restrict API Access": "限制 API 访问",
+    "Restrict API access for": "限制以下用户的 API 访问",
+    "user(s)": "个用户",
+    "They will not be able to use API tokens.": "他们将无法使用 API 令牌。",
+    "Restriction Message": "限制提示信息",
+    "Your API access has been restricted. Please contact an administrator.": "你的 API 访问已被限制，请联系管理员。",
+    "This message will be returned to users when they try to use the API.": "用户尝试使用 API 时会看到此提示。",
+    "API access restricted by admin": "API 访问已被管理员限制",
+    "API access is normal": "API 访问正常",
+    "API access restricted successfully": "已限制 API 访问",
+    "API access restored successfully": "已解除 API 限制",
+    "Confirm Restrict": "确认限制"
   }
 }

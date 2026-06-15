@@ -1805,7 +1805,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
     "For private deployments, format: https://fastgpt.run/api/openapi": "For private deployments, format: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Force a syntactically valid JSON response",
@@ -4655,6 +4655,22 @@
     "Total Users": "Total Users",
     "User Capacity": "User Capacity",
     "Warnings and suggestions": "Warnings and suggestions",
-    "Runtime Sys": "Runtime Sys"
+    "Runtime Sys": "Runtime Sys",
+    "API Allowed": "API Allowed",
+    "API Restricted": "API Restricted",
+    "Restrict API": "Restrict API",
+    "Unrestrict API": "Unrestrict API",
+    "Restrict API Access": "Restrict API Access",
+    "Restrict API access for": "Restrict API access for",
+    "user(s)": "user(s)",
+    "They will not be able to use API tokens.": "They will not be able to use API tokens.",
+    "Restriction Message": "Restriction Message",
+    "Your API access has been restricted. Please contact an administrator.": "Your API access has been restricted. Please contact an administrator.",
+    "This message will be returned to users when they try to use the API.": "This message will be returned to users when they try to use the API.",
+    "API access restricted by admin": "API access restricted by admin",
+    "API access is normal": "API access is normal",
+    "API access restricted successfully": "API access restricted successfully",
+    "API access restored successfully": "API access restored successfully",
+    "Confirm Restrict": "Confirm Restrict"
   }
 }

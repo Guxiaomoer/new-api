@@ -25,6 +25,7 @@ import type {
   UserFormData,
   ManageUserAction,
   ManageUserQuotaPayload,
+  BatchApiRestrictionPayload,
   ApiResponse,
 } from './types'
 
@@ -191,5 +192,31 @@ export async function adminUnbindCustomOAuth(
   const res = await api.delete(
     `/api/user/${userId}/oauth/bindings/${providerId}`
   )
+  return res.data
+}
+
+/**
+ * Batch manage user API restriction
+ */
+export async function batchManageUsersApiRestriction(
+  payload: BatchApiRestrictionPayload
+): Promise<ApiResponse<{ ids: number[]; api_restricted: boolean }>> {
+  const res = await api.post('/api/user/manage', payload)
+  return res.data
+}
+
+/**
+ * Set single user API restriction
+ */
+export async function setUserApiRestriction(
+  id: number,
+  restricted: boolean,
+  message?: string
+): Promise<ApiResponse<{ ids: number[]; api_restricted: boolean }>> {
+  const res = await api.post('/api/user/manage', {
+    id,
+    action: restricted ? 'restrict_api' : 'unrestrict_api',
+    message: message || '',
+  })
   return res.data
 }

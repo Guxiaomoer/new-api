@@ -34,6 +34,7 @@ import { StatusBadge } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { USER_STATUSES, USER_ROLES, isUserDeleted } from '../constants'
 import { type User } from '../types'
+import { isUserApiRestricted, getUserApiRestrictedMessage } from '../lib/user-setting'
 import { DataTableRowActions } from './data-table-row-actions'
 
 function getQuotaProgressColor(percentage: number): string {
@@ -159,6 +160,41 @@ export function useUsersColumns(): ColumnDef<User>[] {
       },
       enableSorting: false,
       meta: { label: t('Status'), mobileBadge: true },
+    },
+    {
+      id: 'api_access',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('API Access')} />
+      ),
+      cell: ({ row }) => {
+        const user = row.original
+        const restricted = isUserApiRestricted(user)
+        const message = getUserApiRestrictedMessage(user)
+
+        return (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <StatusBadge
+                  label={restricted ? t('API Restricted') : t('API Allowed')}
+                  variant={restricted ? 'danger' : 'success'}
+                  copyable={false}
+                  className='cursor-help'
+                />
+              }
+            />
+            <TooltipContent>
+              <p className='text-xs'>
+                {restricted
+                  ? message || t('API access restricted by admin')
+                  : t('API access is normal')}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        )
+      },
+      enableSorting: false,
+      meta: { label: t('API Access'), mobileHidden: true },
     },
     {
       id: 'quota',

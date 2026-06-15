@@ -865,10 +865,12 @@ func CreateUser(c *gin.Context) {
 }
 
 type ManageRequest struct {
-	Id     int    `json:"id"`
-	Action string `json:"action"`
-	Value  int    `json:"value"`
-	Mode   string `json:"mode"`
+	Id      int    `json:"id"`
+	Ids     []int  `json:"ids"`
+	Action  string `json:"action"`
+	Value   int    `json:"value"`
+	Mode    string `json:"mode"`
+	Message string `json:"message"`
 }
 
 // ManageUser Only admin user can do this
@@ -880,6 +882,85 @@ func ManageUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
+
+	// 处理批量 API 限制操作
+	if req.Action == "restrict_api" || req.Action == "unrestrict_api" {
+		ids := req.Ids
+		if len(ids) == 0 && req.Id != 0 {
+			ids = []int{req.Id}
+		}
+		if len(ids) == 0 {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+
+		myRole := c.GetInt("role")
+		var users []model.User
+		if err := model.DB.Where("id IN ?", ids).Find(&users).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if len(users) != len(ids) {
+			common.ApiErrorI18n(c, i18n.MsgUserNotExists)
+			return
+		}
+		for _, target := range users {
+			if target.Role == common.RoleRootUser {
+				common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
+				return
+			}
+			if !canManageTargetRole(myRole, target.Role) {
+				common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
+				return
+			}
+		}
+
+		restricted := req.Action == "restrict_api"
+		if err := model.UpdateUsersApiRestriction(ids, restricted, req.Message); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+
+		// 失效缓存
+		for _, target := range users {
+			if err := model.InvalidateUserCache(target.Id); err != nil {
+				common.SysLog(fmt.Sprintf("failed to invalidate user cache for user %d: %s", target.Id, err.Error()))
+			}
+			if err := model.InvalidateUserTokensCache(target.Id); err != nil {
+				common.SysLog(fmt.Sprintf("failed to invalidate tokens cache for user %d: %s", target.Id, err.Error()))
+			}
+		}
+
+		// 记录管理日志
+		adminName := c.GetString("username")
+		adminId := c.GetInt("id")
+		adminInfo := map[string]interface{}{
+			"admin_id":       adminId,
+			"admin_username": adminName,
+		}
+		actionText := "限制 API 使用"
+		if !restricted {
+			actionText = "解除 API 使用限制"
+		}
+		for _, target := range users {
+			logContent := fmt.Sprintf("管理员%s用户 %s", actionText, target.Username)
+			if restricted && req.Message != "" {
+				logContent += "，提示：" + req.Message
+			}
+			model.RecordLogWithAdminInfo(target.Id, model.LogTypeManage, logContent, adminInfo)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data": gin.H{
+				"ids":            ids,
+				"api_restricted": restricted,
+			},
+		})
+		return
+	}
+
 	user := model.User{
 		Id: req.Id,
 	}

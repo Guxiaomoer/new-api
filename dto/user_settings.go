@@ -16,6 +16,8 @@ type UserSetting struct {
 	SidebarModules                   string  `json:"sidebar_modules,omitempty"`                      // SidebarModules 左侧边栏模块配置
 	BillingPreference                string  `json:"billing_preference,omitempty"`                   // BillingPreference 扣费策略（订阅/钱包）
 	Language                         string  `json:"language,omitempty"`                             // Language 用户语言偏好 (zh, en)
+	ApiRestricted                    bool    `json:"api_restricted,omitempty"`                       // ApiRestricted 是否限制该用户使用 API
+	ApiRestrictedMessage             string  `json:"api_restricted_message,omitempty"`               // ApiRestrictedMessage API 限制时返回的自定义错误
 }
 
 var (
