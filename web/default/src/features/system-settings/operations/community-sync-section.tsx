@@ -59,17 +59,16 @@ import {
 const communitySyncSchema = z.object({
   community_sync: z.object({
     enabled: z.boolean(),
-    endpoint: z.string().url(),
+    endpoint: z.string().min(1),
     room_id: z.string().min(1),
     authorization: z.string(),
     fingerprint: z.string(),
-    interval_minutes: z.coerce.number().int().min(1).max(1440),
+    interval_minutes: z.number().int().min(1).max(1440),
     protected_users: z.string(),
   }),
 })
 
-type CommunitySyncFormInput = z.input<typeof communitySyncSchema>
-type CommunitySyncFormValues = z.output<typeof communitySyncSchema>
+type CommunitySyncFormValues = z.infer<typeof communitySyncSchema>
 
 type CommunitySyncOptionValues = {
   'community_sync.enabled': boolean
@@ -87,7 +86,7 @@ type CommunitySyncSectionProps = {
 
 const toFormValues = (
   values: CommunitySyncOptionValues
-): CommunitySyncFormInput => ({
+): CommunitySyncFormValues => ({
   community_sync: {
     enabled: values['community_sync.enabled'],
     endpoint: values['community_sync.endpoint'],
@@ -172,7 +171,7 @@ export function CommunitySyncSection({
   const [lastResult, setLastResult] = useState<CommunitySyncResult | null>(null)
 
   const formDefaultValues = toFormValues(defaultValues)
-  const form = useForm<CommunitySyncFormInput, unknown, CommunitySyncFormValues>({
+  const form = useForm<CommunitySyncFormValues>({
     resolver: zodResolver(communitySyncSchema),
     defaultValues: formDefaultValues,
   })
@@ -212,7 +211,10 @@ export function CommunitySyncSection({
   const onSubmit = async (values: CommunitySyncFormValues) => {
     const optionValues = toOptionValues(values)
     const updates = Object.entries(optionValues).filter(([key, value]) => {
-      if (key === 'community_sync.authorization' && String(value).trim() === '') {
+      if (
+        (key === 'community_sync.authorization' || key === 'community_sync.fingerprint') &&
+        (String(value).trim() === '' || String(value).startsWith('••••••'))
+      ) {
         return false
       }
       return value !== defaultValues[key as keyof CommunitySyncOptionValues]
@@ -227,7 +229,6 @@ export function CommunitySyncSection({
     for (const [key, value] of updates) {
       await updateOption.mutateAsync({ key, value: serializeValue(value) })
     }
-    form.setValue('community_sync.authorization', '')
   }
 
   const isDirty = form.formState.isDirty

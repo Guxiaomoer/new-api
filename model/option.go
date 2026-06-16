@@ -137,8 +137,8 @@ func InitOptionMap() {
 	common.OptionMap["community_sync.enabled"] = strconv.FormatBool(communitySyncSetting.Enabled)
 	common.OptionMap["community_sync.endpoint"] = communitySyncSetting.Endpoint
 	common.OptionMap["community_sync.room_id"] = communitySyncSetting.RoomID
-	common.OptionMap["community_sync.authorization"] = ""
-	common.OptionMap["community_sync.fingerprint"] = communitySyncSetting.Fingerprint
+	common.OptionMap["community_sync.authorization"] = community_sync_setting.MaskedAuthorization()
+	common.OptionMap["community_sync.fingerprint"] = community_sync_setting.MaskedFingerprint()
 	common.OptionMap["community_sync.interval_minutes"] = strconv.Itoa(communitySyncSetting.IntervalMinutes)
 	common.OptionMap["community_sync.protected_users"] = community_sync_setting.ProtectedUsersString()
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
@@ -272,8 +272,11 @@ func updateOptionMap(key string, value string) (err error) {
 	}
 	if strings.HasPrefix(key, "community_sync.") {
 		community_sync_setting.Update(key, value)
-		if key == "community_sync.authorization" {
-			common.OptionMap[key] = ""
+		switch key {
+		case "community_sync.authorization":
+			common.OptionMap[key] = community_sync_setting.MaskedAuthorization()
+		case "community_sync.fingerprint":
+			common.OptionMap[key] = community_sync_setting.MaskedFingerprint()
 		}
 		return nil
 	}
