@@ -290,6 +290,13 @@ export type OperationsSettings = {
   'general_setting.upstream_intercept_audit_retention_days': number
   'general_setting.global_maintenance_enabled': boolean
   'general_setting.global_maintenance_message': string
+  'community_sync.enabled': boolean
+  'community_sync.endpoint': string
+  'community_sync.room_id': string
+  'community_sync.authorization': string
+  'community_sync.fingerprint': string
+  'community_sync.interval_minutes': number
+  'community_sync.protected_users': string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
   SMTPServer: string

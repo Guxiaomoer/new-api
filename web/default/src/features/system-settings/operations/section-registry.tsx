@@ -24,6 +24,7 @@ import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
 import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
+import { CommunitySyncSection } from './community-sync-section'
 import { MaintenanceResponseSection } from './maintenance-response-section'
 import { ResponseFilterSection } from './response-filter-section'
 import type { OperationsSettings } from '../types'
@@ -101,6 +102,29 @@ const OPERATIONS_SECTIONS = [
             settings['general_setting.global_maintenance_enabled'] ?? false,
           'general_setting.global_maintenance_message':
             settings['general_setting.global_maintenance_message'] ?? '',
+        }}
+      />
+    ),
+  },
+  {
+    id: 'community-sync',
+    titleKey: 'Community Member Sync',
+    build: (settings: OperationsSettings) => (
+      <CommunitySyncSection
+        defaultValues={{
+          'community_sync.enabled': settings['community_sync.enabled'] ?? false,
+          'community_sync.endpoint':
+            settings['community_sync.endpoint'] ??
+            'https://dc.hhhl.cc/api/chat/rooms/members',
+          'community_sync.room_id': settings['community_sync.room_id'] ?? 'ani5zrxyl7',
+          'community_sync.authorization':
+            settings['community_sync.authorization'] ?? '',
+          'community_sync.fingerprint': settings['community_sync.fingerprint'] ?? '',
+          'community_sync.interval_minutes':
+            settings['community_sync.interval_minutes'] ?? 5,
+          'community_sync.protected_users':
+            settings['community_sync.protected_users'] ??
+            '1456671048@qq.com\nlufeng2820@163.com',
         }}
       />
     ),

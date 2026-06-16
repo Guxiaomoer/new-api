@@ -197,6 +197,13 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/waffo-pancake/subscription-product-options", controller.ListWaffoPancakeSubscriptionProductOptions)
 		}
 
+		communitySyncRoute := apiRouter.Group("/community_sync")
+		communitySyncRoute.Use(middleware.RootAuth())
+		{
+			communitySyncRoute.POST("/preview", controller.PreviewCommunitySync)
+			communitySyncRoute.POST("/sync", controller.RunCommunitySync)
+		}
+
 		// Custom OAuth provider management (root only)
 		customOAuthRoute := apiRouter.Group("/custom-oauth-provider")
 		customOAuthRoute.Use(middleware.RootAuth())

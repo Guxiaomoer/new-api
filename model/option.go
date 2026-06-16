@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/community_sync_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/performance_setting"
@@ -132,6 +133,14 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["GlobalApiRestrictionMessage"] = common.GlobalApiRestrictionMessage
+	communitySyncSetting := community_sync_setting.Get()
+	common.OptionMap["community_sync.enabled"] = strconv.FormatBool(communitySyncSetting.Enabled)
+	common.OptionMap["community_sync.endpoint"] = communitySyncSetting.Endpoint
+	common.OptionMap["community_sync.room_id"] = communitySyncSetting.RoomID
+	common.OptionMap["community_sync.authorization"] = ""
+	common.OptionMap["community_sync.fingerprint"] = communitySyncSetting.Fingerprint
+	common.OptionMap["community_sync.interval_minutes"] = strconv.Itoa(communitySyncSetting.IntervalMinutes)
+	common.OptionMap["community_sync.protected_users"] = community_sync_setting.ProtectedUsersString()
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -260,6 +269,13 @@ func updateOptionMap(key string, value string) (err error) {
 	// 检查是否是模型配置 - 使用更规范的方式处理
 	if handleConfigUpdate(key, value) {
 		return nil // 已由配置系统处理
+	}
+	if strings.HasPrefix(key, "community_sync.") {
+		community_sync_setting.Update(key, value)
+		if key == "community_sync.authorization" {
+			common.OptionMap[key] = ""
+		}
+		return nil
 	}
 
 	// 处理传统配置项...
