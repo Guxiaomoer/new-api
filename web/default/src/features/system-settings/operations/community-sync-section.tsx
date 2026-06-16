@@ -210,15 +210,10 @@ export function CommunitySyncSection({
 
   const onSubmit = async (values: CommunitySyncFormValues) => {
     const optionValues = toOptionValues(values)
-    const updates = Object.entries(optionValues).filter(([key, value]) => {
-      if (
-        (key === 'community_sync.authorization' || key === 'community_sync.fingerprint') &&
-        (String(value).trim() === '' || String(value).startsWith('••••••'))
-      ) {
-        return false
-      }
-      return value !== defaultValues[key as keyof CommunitySyncOptionValues]
-    })
+    const updates = Object.entries(optionValues).filter(
+      ([key, value]) =>
+        value !== defaultValues[key as keyof CommunitySyncOptionValues]
+    )
 
     if (updates.length === 0) {
       form.reset(formDefaultValues)
@@ -355,7 +350,7 @@ export function CommunitySyncSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Stored server-side only. The existing token is never returned to the browser.')}
+                      {t('Community API authorization token.')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

@@ -67,12 +67,12 @@ func Update(key, value string) {
 		}
 	case "community_sync.authorization":
 		trimmed := strings.TrimSpace(value)
-		if trimmed != "" && !strings.HasPrefix(trimmed, "••••••") {
+		if trimmed != "" {
 			setting.Authorization = trimmed
 		}
 	case "community_sync.fingerprint":
 		trimmed := strings.TrimSpace(value)
-		if trimmed != "" && !strings.HasPrefix(trimmed, "••••••") {
+		if trimmed != "" {
 			setting.Fingerprint = trimmed
 		}
 	case "community_sync.interval_minutes":
@@ -109,29 +109,6 @@ func SplitProtectedUsers(value string) []string {
 
 func ProtectedUsersString() string {
 	return strings.Join(Get().ProtectedUsers, "\n")
-}
-
-func MaskedAuthorization() string {
-	settingMu.RLock()
-	defer settingMu.RUnlock()
-	return maskSecret(setting.Authorization)
-}
-
-func MaskedFingerprint() string {
-	settingMu.RLock()
-	defer settingMu.RUnlock()
-	return maskSecret(setting.Fingerprint)
-}
-
-func maskSecret(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return ""
-	}
-	if len(trimmed) <= 4 {
-		return "••••••" + trimmed
-	}
-	return "••••••" + trimmed[len(trimmed)-4:]
 }
 
 func parseBool(value string) bool {
