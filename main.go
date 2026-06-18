@@ -122,6 +122,9 @@ func main() {
 	// Community member sync task keeps API restriction state aligned with the configured room.
 	service.StartCommunitySyncLoop()
 
+	// Community check-in bot handles room mentions and daily rewards.
+	service.StartCommunityCheckinBotLoop()
+
 	// Wire task polling adaptor factory (breaks service -> relay import cycle)
 	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
 		a := relay.GetTaskAdaptor(platform)

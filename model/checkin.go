@@ -58,6 +58,22 @@ func UserCheckin(userId int) (*Checkin, error) {
 		return nil, errors.New("签到功能未启用")
 	}
 
+	// 计算随机额度奖励
+	quotaAwarded := setting.MinQuota
+	if setting.MaxQuota > setting.MinQuota {
+		quotaAwarded = setting.MinQuota + rand.Intn(setting.MaxQuota-setting.MinQuota+1)
+	}
+
+	return UserCheckinWithQuota(userId, quotaAwarded)
+}
+
+// UserCheckinWithQuota 执行用户签到，并使用调用方指定的奖励额度。
+// 数据库唯一约束 (user_id, checkin_date) 会兜底防止并发重复签到。
+func UserCheckinWithQuota(userId int, quotaAwarded int) (*Checkin, error) {
+	if quotaAwarded <= 0 {
+		return nil, errors.New("签到奖励额度无效")
+	}
+
 	// 检查今天是否已签到
 	hasChecked, err := HasCheckedInToday(userId)
 	if err != nil {
@@ -65,12 +81,6 @@ func UserCheckin(userId int) (*Checkin, error) {
 	}
 	if hasChecked {
 		return nil, errors.New("今日已签到")
-	}
-
-	// 计算随机额度奖励
-	quotaAwarded := setting.MinQuota
-	if setting.MaxQuota > setting.MinQuota {
-		quotaAwarded = setting.MinQuota + rand.Intn(setting.MaxQuota-setting.MinQuota+1)
 	}
 
 	today := time.Now().Format("2006-01-02")

@@ -204,6 +204,13 @@ func SetApiRouter(router *gin.Engine) {
 			communitySyncRoute.POST("/sync", controller.RunCommunitySync)
 		}
 
+		communityCheckinBotRoute := apiRouter.Group("/community_checkin_bot")
+		communityCheckinBotRoute.Use(middleware.RootAuth())
+		{
+			communityCheckinBotRoute.GET("/status", controller.GetCommunityCheckinBotStatus)
+			communityCheckinBotRoute.POST("/run", controller.RunCommunityCheckinBot)
+		}
+
 		// Custom OAuth provider management (root only)
 		customOAuthRoute := apiRouter.Group("/custom-oauth-provider")
 		customOAuthRoute.Use(middleware.RootAuth())

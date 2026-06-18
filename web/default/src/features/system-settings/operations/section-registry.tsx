@@ -24,6 +24,7 @@ import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
 import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
+import { CommunityCheckinBotSection } from './community-checkin-bot-section'
 import { CommunitySyncSection } from './community-sync-section'
 import { MaintenanceResponseSection } from './maintenance-response-section'
 import { ResponseFilterSection } from './response-filter-section'
@@ -125,6 +126,30 @@ const OPERATIONS_SECTIONS = [
           'community_sync.protected_users':
             settings['community_sync.protected_users'] ??
             '1456671048@qq.com\nlufeng2820@163.com',
+        }}
+      />
+    ),
+  },
+  {
+    id: 'community-checkin-bot',
+    titleKey: '社区签到机器人维护',
+    build: (settings: OperationsSettings) => (
+      <CommunityCheckinBotSection
+        defaultValues={{
+          'community_checkin_bot.enabled':
+            settings['community_checkin_bot.enabled'] ?? false,
+          'community_checkin_bot.bot_user_id':
+            settings['community_checkin_bot.bot_user_id'] ?? 'amlarbic93',
+          'community_checkin_bot.bot_name':
+            settings['community_checkin_bot.bot_name'] ?? 'Guxiaomo',
+          'community_checkin_bot.interval_seconds':
+            settings['community_checkin_bot.interval_seconds'] ?? 30,
+          'community_checkin_bot.min_usd':
+            settings['community_checkin_bot.min_usd'] ?? 2,
+          'community_checkin_bot.max_usd':
+            settings['community_checkin_bot.max_usd'] ?? 5,
+          'community_checkin_bot.last_message_id':
+            settings['community_checkin_bot.last_message_id'] ?? '',
         }}
       />
     ),

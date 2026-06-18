@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/community_checkin_bot_setting"
 	"github.com/QuantumNous/new-api/setting/community_sync_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -141,6 +142,14 @@ func InitOptionMap() {
 	common.OptionMap["community_sync.fingerprint"] = communitySyncSetting.Fingerprint
 	common.OptionMap["community_sync.interval_minutes"] = strconv.Itoa(communitySyncSetting.IntervalMinutes)
 	common.OptionMap["community_sync.protected_users"] = community_sync_setting.ProtectedUsersString()
+	communityCheckinBotSetting := community_checkin_bot_setting.Get()
+	common.OptionMap["community_checkin_bot.enabled"] = strconv.FormatBool(communityCheckinBotSetting.Enabled)
+	common.OptionMap["community_checkin_bot.bot_user_id"] = communityCheckinBotSetting.BotUserID
+	common.OptionMap["community_checkin_bot.bot_name"] = communityCheckinBotSetting.BotName
+	common.OptionMap["community_checkin_bot.interval_seconds"] = strconv.Itoa(communityCheckinBotSetting.IntervalSeconds)
+	common.OptionMap["community_checkin_bot.min_usd"] = strconv.Itoa(communityCheckinBotSetting.MinUSD)
+	common.OptionMap["community_checkin_bot.max_usd"] = strconv.Itoa(communityCheckinBotSetting.MaxUSD)
+	common.OptionMap["community_checkin_bot.last_message_id"] = communityCheckinBotSetting.LastMessageID
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -279,6 +288,27 @@ func updateOptionMap(key string, value string) (err error) {
 			common.OptionMap[key] = community_sync_setting.Get().Fingerprint
 		default:
 			common.OptionMap[key] = value
+		}
+		return nil
+	}
+	if strings.HasPrefix(key, "community_checkin_bot.") {
+		community_checkin_bot_setting.Update(key, value)
+		updatedSetting := community_checkin_bot_setting.Get()
+		switch key {
+		case "community_checkin_bot.enabled":
+			common.OptionMap[key] = strconv.FormatBool(updatedSetting.Enabled)
+		case "community_checkin_bot.bot_user_id":
+			common.OptionMap[key] = updatedSetting.BotUserID
+		case "community_checkin_bot.bot_name":
+			common.OptionMap[key] = updatedSetting.BotName
+		case "community_checkin_bot.interval_seconds":
+			common.OptionMap[key] = strconv.Itoa(updatedSetting.IntervalSeconds)
+		case "community_checkin_bot.min_usd":
+			common.OptionMap[key] = strconv.Itoa(updatedSetting.MinUSD)
+		case "community_checkin_bot.max_usd":
+			common.OptionMap[key] = strconv.Itoa(updatedSetting.MaxUSD)
+		case "community_checkin_bot.last_message_id":
+			common.OptionMap[key] = updatedSetting.LastMessageID
 		}
 		return nil
 	}

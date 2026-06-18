@@ -297,6 +297,13 @@ export type OperationsSettings = {
   'community_sync.fingerprint': string
   'community_sync.interval_minutes': number
   'community_sync.protected_users': string
+  'community_checkin_bot.enabled': boolean
+  'community_checkin_bot.bot_user_id': string
+  'community_checkin_bot.bot_name': string
+  'community_checkin_bot.interval_seconds': number
+  'community_checkin_bot.min_usd': number
+  'community_checkin_bot.max_usd': number
+  'community_checkin_bot.last_message_id': string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
   SMTPServer: string
