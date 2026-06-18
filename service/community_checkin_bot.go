@@ -253,12 +253,17 @@ func isCommunityCheckinTrigger(message communityCheckinMessage, cfg community_ch
 	if botUserID == "" || senderID(message) == botUserID {
 		return false
 	}
+	botName := strings.TrimSpace(cfg.BotName)
 	mentioned := false
 	for _, id := range message.MentionedUserIDs {
 		if strings.TrimSpace(id) == botUserID {
 			mentioned = true
 			break
 		}
+	}
+	if !mentioned && botName != "" {
+		text := strings.TrimSpace(message.Text)
+		mentioned = strings.Contains(text, "@"+botName) || strings.Contains(text, "＠"+botName)
 	}
 	if !mentioned {
 		return false
