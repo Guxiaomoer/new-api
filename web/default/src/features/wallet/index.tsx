@@ -275,6 +275,7 @@ export function Wallet(props: WalletProps) {
                 checkinEnabled={checkinEnabled}
                 turnstileEnabled={turnstileEnabled}
                 turnstileSiteKey={turnstileSiteKey}
+                onCheckinSuccess={fetchUser}
               />
             )}
 
