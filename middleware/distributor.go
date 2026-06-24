@@ -126,14 +126,11 @@ func Distribute() func(c *gin.Context) {
 				}
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
+					affinityUsable := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
-					if err == nil && preferred != nil {
-						if preferred.Status != common.ChannelStatusEnabled {
-							if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
-								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorAffinityChannelDisabled))
-								return
-							}
-						} else if usingGroup == "auto" {
+					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled &&
+						channelSupportsRequestPath(preferred, c.Request.URL.Path) {
+						if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 							autoGroups := service.GetUserAutoGroup(userGroup)
 							for _, g := range autoGroups {
@@ -141,6 +138,7 @@ func Distribute() func(c *gin.Context) {
 									selectGroup = g
 									common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
 									channel = preferred
+									affinityUsable = true
 									service.MarkChannelAffinityUsed(c, g, preferred.Id)
 									break
 								}
@@ -148,17 +146,22 @@ func Distribute() func(c *gin.Context) {
 						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
 							channel = preferred
 							selectGroup = usingGroup
+							affinityUsable = true
 							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 						}
+					}
+					if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
+						service.ClearCurrentChannelAffinityCache(c)
 					}
 				}
 
 				if channel == nil {
 					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:        c,
-						ModelName:  modelRequest.Model,
-						TokenGroup: usingGroup,
-						Retry:      common.GetPointer(0),
+						Ctx:         c,
+						ModelName:   modelRequest.Model,
+						TokenGroup:  usingGroup,
+						RequestPath: c.Request.URL.Path,
+						Retry:       common.GetPointer(0),
 					})
 					if err != nil {
 						showGroup := usingGroup
@@ -193,8 +196,23 @@ func Distribute() func(c *gin.Context) {
 	}
 }
 
+// channelSupportsRequestPath reports whether a channel can serve the request path.
+// Only Advanced Custom (type 58) channels are path-checked; all other channel types
+// always pass. A type-58 channel is usable only when one of its routes matches.
+func channelSupportsRequestPath(channel *model.Channel, requestPath string) bool {
+	if channel == nil {
+		return false
+	}
+	if channel.Type != constant.ChannelTypeAdvancedCustom {
+		return true
+	}
+	config := channel.GetOtherSettings().AdvancedCustom
+	return config != nil && config.SupportsPath(requestPath)
+}
+
 // getModelFromRequest reads model information from the request.
 // It handles Content-Type automatically:
+// - application/json
 // - application/x-www-form-urlencoded
 // - multipart/form-data
 func getModelFromRequest(c *gin.Context) (*ModelRequest, error) {
