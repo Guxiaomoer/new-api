@@ -26,6 +26,7 @@ import {
   ModelsSection,
   PulseSection,
   RankingsHero,
+  UsersSection,
 } from './components'
 import { useRankings } from './hooks/use-rankings'
 import type { RankingPeriod } from './types'
@@ -86,6 +87,12 @@ export function Rankings() {
             />
           ) : (
             <>
+              <UsersSection
+                history={snapshot.users_history}
+                rows={snapshot.users}
+                period={period}
+              />
+
               <ModelsSection
                 history={snapshot.models_history}
                 rows={snapshot.models}

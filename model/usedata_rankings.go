@@ -64,3 +64,48 @@ func applyRankingQuotaTimeRange(query *gorm.DB, startTime int64, endTime int64) 
 	}
 	return query
 }
+
+// ── User rankings (token consumption by user) ──────────────────────────────
+
+type RankingUserTotal struct {
+	UserID      int    `json:"user_id"`
+	Username    string `json:"username"`
+	TotalTokens int64  `json:"total_tokens"`
+}
+
+type RankingUserBucket struct {
+	UserID   int    `json:"user_id"`
+	Username string `json:"username"`
+	Bucket   int64  `json:"bucket"`
+	Tokens   int64  `json:"tokens"`
+}
+
+func GetRankingUserTotals(startTime int64, endTime int64) ([]RankingUserTotal, error) {
+	var rows []RankingUserTotal
+	query := DB.Table("quota_data").
+		Select("user_id, username, sum(token_used) as total_tokens").
+		Where("username <> ''").
+		Group("user_id, username").
+		Having("sum(token_used) > 0").
+		Order("total_tokens DESC")
+	query = applyRankingQuotaTimeRange(query, startTime, endTime)
+	err := query.Find(&rows).Error
+	return rows, err
+}
+
+func GetRankingUserBuckets(startTime int64, endTime int64, bucketSize int64) ([]RankingUserBucket, error) {
+	if bucketSize <= 0 {
+		bucketSize = 3600
+	}
+	bucketExpr := rankingBucketExpr(bucketSize)
+	var rows []RankingUserBucket
+	query := DB.Table("quota_data").
+		Select(fmt.Sprintf("user_id, username, %s as bucket, sum(token_used) as tokens", bucketExpr)).
+		Where("username <> ''").
+		Group(fmt.Sprintf("user_id, username, %s", bucketExpr)).
+		Having("sum(token_used) > 0").
+		Order("bucket ASC")
+	query = applyRankingQuotaTimeRange(query, startTime, endTime)
+	err := query.Find(&rows).Error
+	return rows, err
+}

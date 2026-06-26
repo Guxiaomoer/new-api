@@ -123,6 +123,29 @@ export type VendorShareSeries = {
   buckets: number
 }
 
+export type UserRanking = {
+  rank: number
+  previous_rank?: number
+  user_id: number
+  username: string
+  total_tokens: number
+  share: number
+  growth_pct: number
+}
+
+export type UserHistoryPoint = {
+  ts: string
+  label: string
+  username: string
+  tokens: number
+}
+
+export type UserHistorySeries = {
+  points: UserHistoryPoint[]
+  users: Array<{ username: string; total: number }>
+  buckets: number
+}
+
 export type RankingsSnapshot = {
   // Overall (all categories) ------------------------------------------------
   models: ModelRanking[]
@@ -135,4 +158,8 @@ export type RankingsSnapshot = {
   models_history: ModelHistorySeries
   /** 100%-stacked area history of token share by vendor over the period. */
   vendor_share_history: VendorShareSeries
+  /** User token consumption leaderboard. */
+  users: UserRanking[]
+  /** Stacked-bar history of token usage by user over the period. */
+  users_history: UserHistorySeries
 }

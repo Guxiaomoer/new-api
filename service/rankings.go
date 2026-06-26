@@ -27,6 +27,8 @@ type RankingsResponse struct {
 	TopDroppers        []RankingMover     `json:"top_droppers"`
 	ModelsHistory      ModelHistorySeries `json:"models_history"`
 	VendorShareHistory VendorShareSeries  `json:"vendor_share_history"`
+	Users              []RankedUser       `json:"users"`
+	UsersHistory       UserHistorySeries  `json:"users_history"`
 }
 
 type RankedModel struct {
@@ -59,6 +61,36 @@ type RankingMover struct {
 	RankDelta   int     `json:"rank_delta"`
 	CurrentRank int     `json:"current_rank"`
 	GrowthPct   float64 `json:"growth_pct"`
+}
+
+// ── User rankings ──────────────────────────────────────────────────────
+
+type RankedUser struct {
+	Rank         int     `json:"rank"`
+	PreviousRank *int    `json:"previous_rank,omitempty"`
+	UserID       int     `json:"user_id"`
+	Username     string  `json:"username"`
+	TotalTokens  int64   `json:"total_tokens"`
+	Share        float64 `json:"share"`
+	GrowthPct    float64 `json:"growth_pct"`
+}
+
+type UserHistoryPoint struct {
+	Ts       string `json:"ts"`
+	Label    string `json:"label"`
+	Username string `json:"username"`
+	Tokens   int64  `json:"tokens"`
+}
+
+type UserHistoryModel struct {
+	Username string `json:"username"`
+	Total    int64  `json:"total"`
+}
+
+type UserHistorySeries struct {
+	Points  []UserHistoryPoint `json:"points"`
+	Users   []UserHistoryModel `json:"users"`
+	Buckets int                `json:"buckets"`
 }
 
 type ModelHistoryPoint struct {
@@ -189,10 +221,28 @@ func buildRankingsSnapshot(config rankingPeriodConfig, now time.Time) (*Rankings
 		return nil, err
 	}
 
+	currentUserTotals, err := model.GetRankingUserTotals(startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	currentUserBuckets, err := model.GetRankingUserBuckets(startTime, endTime, config.bucketSize)
+	if err != nil {
+		return nil, err
+	}
+
 	var previousTotals []model.RankingQuotaTotal
 	if config.hasPrevious {
 		previousStart, previousEnd := previousRankingTimeRange(config, startTime)
 		previousTotals, err = model.GetRankingQuotaTotals(previousStart, previousEnd)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var previousUserTotals []model.RankingUserTotal
+	if config.hasPrevious {
+		previousStart, previousEnd := previousRankingTimeRange(config, startTime)
+		previousUserTotals, err = model.GetRankingUserTotals(previousStart, previousEnd)
 		if err != nil {
 			return nil, err
 		}
@@ -209,6 +259,8 @@ func buildRankingsSnapshot(config rankingPeriodConfig, now time.Time) (*Rankings
 	vendorHistory := buildVendorShareHistory(currentBuckets, vendors, totalTokens, meta, config)
 	movers, droppers := buildRankingMovers(rankedModels)
 
+	users, usersHistory := buildUserRankings(currentUserTotals, previousUserTotals, currentUserBuckets, totalTokens, config)
+
 	return &RankingsResponse{
 		Models:             limitRankedModels(rankedModels, rankingLeaderboardLimit),
 		Vendors:            vendors,
@@ -216,6 +268,8 @@ func buildRankingsSnapshot(config rankingPeriodConfig, now time.Time) (*Rankings
 		TopDroppers:        droppers,
 		ModelsHistory:      modelHistory,
 		VendorShareHistory: vendorHistory,
+		Users:              users,
+		UsersHistory:       usersHistory,
 	}, nil
 }
 
@@ -594,4 +648,98 @@ func minInt(a int, b int) int {
 		return a
 	}
 	return b
+}
+
+// ── User rankings builder ──────────────────────────────────────────────
+
+const rankingUserLimit = 50
+
+func buildUserRankings(
+	currentTotals []model.RankingUserTotal,
+	previousTotals []model.RankingUserTotal,
+	buckets []model.RankingUserBucket,
+	totalTokens int64,
+	config rankingPeriodConfig,
+) ([]RankedUser, UserHistorySeries) {
+	previousTokensByUser := make(map[string]int64, len(previousTotals))
+	previousRankByUser := make(map[string]int, len(previousTotals))
+	for idx, item := range previousTotals {
+		previousTokensByUser[item.Username] = item.TotalTokens
+		previousRankByUser[item.Username] = idx + 1
+	}
+
+	rankedUsers := make([]RankedUser, 0, minInt(len(currentTotals), rankingUserLimit))
+	for idx, item := range currentTotals {
+		if idx >= rankingUserLimit {
+			break
+		}
+		var previousRank *int
+		if rank, ok := previousRankByUser[item.Username]; ok {
+			rankCopy := rank
+			previousRank = &rankCopy
+		}
+		growth := rankingGrowthPct(item.TotalTokens, previousTokensByUser[item.Username])
+		rankedUsers = append(rankedUsers, RankedUser{
+			Rank:         idx + 1,
+			PreviousRank: previousRank,
+			UserID:       item.UserID,
+			Username:     item.Username,
+			TotalTokens:  item.TotalTokens,
+			Share:        rankingShare(item.TotalTokens, totalTokens),
+			GrowthPct:    growth,
+		})
+	}
+
+	// Build history series — top N users + Others
+	topUsers := make(map[string]struct{})
+	historyUsers := make([]UserHistoryModel, 0, minInt(len(currentTotals), rankingHistoryLimit)+1)
+	otherTotal := int64(0)
+	for idx, item := range currentTotals {
+		if idx < rankingHistoryLimit {
+			topUsers[item.Username] = struct{}{}
+			historyUsers = append(historyUsers, UserHistoryModel{Username: item.Username, Total: item.TotalTokens})
+			continue
+		}
+		otherTotal += item.TotalTokens
+	}
+	if otherTotal > 0 {
+		historyUsers = append(historyUsers, UserHistoryModel{Username: rankingOthersLabel, Total: otherTotal})
+	}
+
+	bucketSet := make(map[int64]struct{})
+	tokensByBucketAndUser := make(map[int64]map[string]int64)
+	for _, item := range buckets {
+		username := item.Username
+		if _, ok := topUsers[username]; !ok {
+			username = rankingOthersLabel
+		}
+		bucketSet[item.Bucket] = struct{}{}
+		if _, ok := tokensByBucketAndUser[item.Bucket]; !ok {
+			tokensByBucketAndUser[item.Bucket] = make(map[string]int64)
+		}
+		tokensByBucketAndUser[item.Bucket][username] += item.Tokens
+	}
+
+	sortedBuckets := sortedRankingBuckets(bucketSet)
+	points := make([]UserHistoryPoint, 0, len(sortedBuckets)*len(historyUsers))
+	for _, bucket := range sortedBuckets {
+		for _, historyUser := range historyUsers {
+			tokens := tokensByBucketAndUser[bucket][historyUser.Username]
+			if tokens <= 0 {
+				continue
+			}
+			points = append(points, UserHistoryPoint{
+				Ts:       rankingBucketTs(bucket),
+				Label:    rankingBucketLabel(bucket, config),
+				Username: historyUser.Username,
+				Tokens:   tokens,
+			})
+		}
+	}
+
+	return rankedUsers, UserHistorySeries{
+		Points:  points,
+		Users:   historyUsers,
+		Buckets: len(sortedBuckets),
+	}
 }
