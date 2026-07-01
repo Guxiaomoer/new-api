@@ -96,6 +96,12 @@ var defaultModelRatio = map[string]float64{
 	"gpt-5-mini-2025-08-07":                     0.125,
 	"gpt-5-nano":                                0.025,
 	"gpt-5-nano-2025-08-07":                     0.025,
+	"gpt-5.4":                                   0.625,
+	"gpt-5.4-mini":                              0.125,
+	"gpt-5.4-nano":                              0.025,
+	"gpt-5.5":                                   0.625,
+	"gpt-5.5-mini":                              0.125,
+	"gpt-5.5-nano":                              0.025,
 	"gpt-3.5-turbo":                             0.25,
 	"gpt-3.5-turbo-0613":                        0.75,
 	"gpt-3.5-turbo-16k":                         1.5, // $0.003 / 1K tokens
@@ -203,6 +209,8 @@ var defaultModelRatio = map[string]float64{
 	"glm-4-airx":                                0.01 * RMB,
 	"glm-4-long":                                0.001 * RMB,
 	"glm-4-flash":                               0,
+	"glm-5":                                    0.1,
+	"glm-5.2":                                  0.1,
 	"glm-4v-plus":                               0.01 * RMB,
 	"qwen-turbo":                                0.8572, // ￥0.012 / 1k tokens
 	"qwen-plus":                                 10,     // ￥0.14 / 1k tokens
@@ -238,6 +246,8 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-chat":          0.27 / 2,
 	"deepseek-coder":         0.27 / 2,
 	"deepseek-reasoner":      0.55 / 2, // 0.55 / 1k tokens
+	"deepseek-v3":           0.135,
+	"deepseek-r1":           0.275,
 	// Perplexity online 模型对搜索额外收费，有需要应自行调整，此处不计入搜索费用
 	"llama-3-sonar-small-32k-chat":   0.2 / 1000 * USD,
 	"llama-3-sonar-small-32k-online": 0.2 / 1000 * USD,
@@ -552,6 +562,10 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 			}
 			return 8, true
 		}
+			// gpt-4.1 匹配 (output/input = 4x)
+			if strings.HasPrefix(name, "gpt-4.1") {
+				return 4, false
+			}
 		// gpt-4.5-preview匹配
 		if strings.HasPrefix(name, "gpt-4.5-preview") {
 			return 2, true
@@ -617,6 +631,9 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 		}
 		return 4, false
 	}
+	if strings.HasPrefix(name, "deepseek-") {
+		return 4, false
+	}
 	if strings.HasPrefix(name, "command") {
 		switch name {
 		case "command-r":
@@ -632,6 +649,12 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 		}
 	}
 	// hint 只给官方上4倍率，由于开源模型供应商自行定价，不对其进行补全倍率进行强制对齐
+	if strings.HasPrefix(name, "grok-") {
+		return 5, false
+	}
+	if strings.HasPrefix(name, "glm-") || strings.HasPrefix(name, "chatglm_") {
+		return 4, false
+	}
 	if strings.HasPrefix(name, "ERNIE-Speed-") {
 		return 2, true
 	} else if strings.HasPrefix(name, "ERNIE-Lite-") {
