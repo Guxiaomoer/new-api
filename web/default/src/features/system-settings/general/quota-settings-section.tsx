@@ -16,13 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, type ChangeEvent } from 'react'
-import * as z from 'zod'
-import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import type { ChangeEvent } from 'react'
+import type { Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
-import i18next from 'i18next'
+import * as z from 'zod'
+
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Form,
@@ -35,6 +34,8 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import { formatQuota } from '@/lib/format'
+
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
 import {
@@ -46,6 +47,7 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
+import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const quotaSchema = z.object({
@@ -64,38 +66,10 @@ const quotaSchema = z.object({
 })
 
 type QuotaFormValues = z.infer<typeof quotaSchema>
+type QuotaInputValue = number | ''
 
-type FlatQuotaSettings = {
-  QuotaForNewUser: number
-  PreConsumedQuota: number
-  QuotaForInviter: number
-  QuotaForInvitee: number
-  GlobalApiRestrictionMessage: string
-  TopUpLink: string
-  'general_setting.docs_link': string
-  'quota_setting.enable_free_model_pre_consume': boolean
-}
-
-const flattenQuotaValues = (
-  values: QuotaFormValues
-): FlatQuotaSettings => ({
-  QuotaForNewUser: values.QuotaForNewUser,
-  PreConsumedQuota: values.PreConsumedQuota,
-  QuotaForInviter: values.QuotaForInviter,
-  QuotaForInvitee: values.QuotaForInvitee,
-  GlobalApiRestrictionMessage: values.GlobalApiRestrictionMessage,
-  TopUpLink: values.TopUpLink,
-  'general_setting.docs_link': values.general_setting.docs_link,
-  'quota_setting.enable_free_model_pre_consume':
-    values.quota_setting.enable_free_model_pre_consume,
-})
-
-const serializeValue = (value: unknown): string => {
-  if (typeof value === 'boolean') return String(value)
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? String(value) : '0'
-  }
-  return String(value ?? '')
+function formatQuotaInputValue(value: QuotaInputValue): string {
+  return formatQuota(value === '' ? 0 : value)
 }
 
 type QuotaSettingsSectionProps = {
@@ -110,50 +84,29 @@ export function QuotaSettingsSection({
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const handleNumberChange =
-    (onChange: (value: number | string) => void) =>
+    (onChange: (value: QuotaInputValue) => void) =>
     (event: ChangeEvent<HTMLInputElement>) => {
-      onChange(
-        event.target.value === '' ? '' : event.currentTarget.valueAsNumber
-      )
+      const value = event.currentTarget.valueAsNumber
+      onChange(Number.isNaN(value) ? '' : value)
     }
 
-  const form = useForm<QuotaFormValues, unknown, QuotaFormValues>({
-    resolver: zodResolver(quotaSchema) as Resolver<
-      QuotaFormValues,
-      unknown,
-      QuotaFormValues
-    >,
-    defaultValues,
-  })
-
-  useEffect(() => {
-    form.reset(defaultValues)
-  }, [defaultValues, form])
-
-  const onSubmit = async (values: QuotaFormValues) => {
-    const flattenedDefaults = flattenQuotaValues(defaultValues)
-    const flattenedValues = flattenQuotaValues(values)
-    const updates = Object.entries(flattenedValues).filter(
-      ([key, value]) =>
-        value !== flattenedDefaults[key as keyof FlatQuotaSettings]
-    )
-
-    if (updates.length === 0) {
-      toast.info(i18next.t('No changes to save'))
-      return
-    }
-
-    for (const [key, value] of updates) {
-      await updateOption.mutateAsync({
-        key,
-        value: serializeValue(value),
-      })
-    }
-  }
-
-  const isDirty = form.formState.isDirty
-  const isSubmitting = form.formState.isSubmitting
-  const handleSubmit = form.handleSubmit(onSubmit)
+  const { form, handleSubmit, isDirty, isSubmitting } =
+    useSettingsForm<QuotaFormValues>({
+      resolver: zodResolver(quotaSchema) as Resolver<
+        QuotaFormValues,
+        unknown,
+        QuotaFormValues
+      >,
+      defaultValues,
+      onSubmit: async (_data, changedFields) => {
+        for (const [key, value] of Object.entries(changedFields)) {
+          await updateOption.mutateAsync({
+            key,
+            value: value as string | number | boolean,
+          })
+        }
+      },
+    })
 
   return (
     <SettingsSection title={t('Quota Settings')}>
@@ -194,7 +147,12 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('Initial quota given to new users')}
+                    {t(
+                      'Initial quota given to new users ({{formattedQuota}})',
+                      {
+                        formattedQuota: formatQuotaInputValue(field.value),
+                      }
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -242,7 +200,12 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('Quota given to users who invite others')}
+                    {t(
+                      'Quota given to users who invite others ({{formattedQuota}})',
+                      {
+                        formattedQuota: formatQuotaInputValue(field.value),
+                      }
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -266,7 +229,9 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('Quota given to invited users')}
+                    {t('Quota given to invited users ({{formattedQuota}})', {
+                      formattedQuota: formatQuotaInputValue(field.value),
+                    })}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -284,14 +249,18 @@ export function QuotaSettingsSection({
                       <Input
                         value={field.value ?? ''}
                         onChange={(event) => field.onChange(event.target.value)}
-                        placeholder={t('Your API access has been restricted. Please contact an administrator.')}
+                        placeholder={t(
+                          'Your API access has been restricted. Please contact an administrator.'
+                        )}
                         name={field.name}
                         onBlur={field.onBlur}
                         ref={field.ref}
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Default message shown to users when their API access is restricted. Can be overridden per user.')}
+                      {t(
+                        'Default message shown to users when their API access is restricted. Can be overridden per user.'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -334,11 +303,7 @@ export function QuotaSettingsSection({
                   <FormControl>
                     <Input
                       placeholder={t('https://example.com/topup')}
-                      value={field.value ?? ''}
-                      onChange={(event) => field.onChange(event.target.value)}
-                      name={field.name}
-                      onBlur={field.onBlur}
-                      ref={field.ref}
+                      {...field}
                     />
                   </FormControl>
                   <FormDescription>
@@ -358,11 +323,7 @@ export function QuotaSettingsSection({
                   <FormControl>
                     <Input
                       placeholder={t('https://docs.example.com')}
-                      value={field.value ?? ''}
-                      onChange={(event) => field.onChange(event.target.value)}
-                      name={field.name}
-                      onBlur={field.onBlur}
-                      ref={field.ref}
+                      {...field}
                     />
                   </FormControl>
                   <FormDescription>
@@ -372,7 +333,6 @@ export function QuotaSettingsSection({
                 </FormItem>
               )}
             />
-
           </SettingsFormGrid>
         </SettingsForm>
       </Form>

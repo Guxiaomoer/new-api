@@ -99,9 +99,12 @@ var defaultModelRatio = map[string]float64{
 	"gpt-5.4":                                   0.625,
 	"gpt-5.4-mini":                              0.125,
 	"gpt-5.4-nano":                              0.025,
-	"gpt-5.5":                                   0.625,
+	"gpt-5.5":                                   2.5, // $5 / 1M tokens
 	"gpt-5.5-mini":                              0.125,
 	"gpt-5.5-nano":                              0.025,
+	"gpt-5.6-sol":                               2.5,
+	"gpt-5.6-terra":                             1.25,
+	"gpt-5.6-luna":                              0.5,
 	"gpt-3.5-turbo":                             0.25,
 	"gpt-3.5-turbo-0613":                        0.75,
 	"gpt-3.5-turbo-16k":                         1.5, // $0.003 / 1K tokens
@@ -551,8 +554,8 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 		}
 		// gpt-5 匹配
 		if strings.HasPrefix(name, "gpt-5") {
-			if strings.HasPrefix(name, "gpt-5.5") {
-				return 6, true
+			if !strings.Contains(name, ".") {
+				return 8, true
 			}
 			if strings.HasPrefix(name, "gpt-5.4") {
 				if strings.HasPrefix(name, "gpt-5.4-nano") {
@@ -560,7 +563,8 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 				}
 				return 6, true
 			}
-			return 8, true
+			// gpt-5.5 and later models are unlocked
+			return 6, false
 		}
 			// gpt-4.1 匹配 (output/input = 4x)
 			if strings.HasPrefix(name, "gpt-4.1") {
