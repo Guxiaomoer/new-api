@@ -33,13 +33,14 @@ type ChannelOtherSettings struct {
 	AzureResponsesVersion                 string                `json:"azure_responses_version,omitempty"`
 	VertexKeyType                         VertexKeyType         `json:"vertex_key_type,omitempty"` // "json" or "api_key"
 	OpenRouterEnterprise                  *bool                 `json:"openrouter_enterprise,omitempty"`
-	ClaudeBetaQuery                       bool                  `json:"claude_beta_query,omitempty"`         // Claude 渠道是否强制追加 ?beta=true
-	AllowServiceTier                      bool                  `json:"allow_service_tier,omitempty"`        // 是否允许 service_tier 透传（默认过滤以避免额外计费）
-	AllowInferenceGeo                     bool                  `json:"allow_inference_geo,omitempty"`       // 是否允许 inference_geo 透传（仅 Claude，默认过滤以满足数据驻留合规
-	AllowSpeed                            bool                  `json:"allow_speed,omitempty"`               // 是否允许 speed 透传（仅 Claude，默认过滤以避免意外切换推理速度模式）
-	AllowSafetyIdentifier                 bool                  `json:"allow_safety_identifier,omitempty"`   // 是否允许 safety_identifier 透传（默认过滤以保护用户隐私）
-	DisableStore                          bool                  `json:"disable_store,omitempty"`             // 是否禁用 store 透传（默认允许透传，禁用后可能导致 Codex 无法使用）
-	AllowIncludeObfuscation               bool                  `json:"allow_include_obfuscation,omitempty"` // 是否允许 stream_options.include_obfuscation 透传（默认过滤以避免关闭流混淆保护）
+	ClaudeBetaQuery                       bool                  `json:"claude_beta_query,omitempty"`          // Claude 渠道是否强制追加 ?beta=true
+	AllowServiceTier                      bool                  `json:"allow_service_tier,omitempty"`         // 是否允许 service_tier 透传（默认过滤以避免额外计费）
+	AllowInferenceGeo                     bool                  `json:"allow_inference_geo,omitempty"`        // 是否允许 inference_geo 透传（仅 Claude，默认过滤以满足数据驻留合规
+	AllowSpeed                            bool                  `json:"allow_speed,omitempty"`                // 是否允许 speed 透传（仅 Claude，默认过滤以避免意外切换推理速度模式）
+	AllowSafetyIdentifier                 bool                  `json:"allow_safety_identifier,omitempty"`    // 是否允许 safety_identifier 透传（默认过滤以保护用户隐私）
+	DisableStore                          bool                  `json:"disable_store,omitempty"`              // 是否禁用 store 透传（默认允许透传，禁用后可能导致 Codex 无法使用）
+	AllowIncludeObfuscation               bool                  `json:"allow_include_obfuscation,omitempty"`  // 是否允许 stream_options.include_obfuscation 透传（默认过滤以避免关闭流混淆保护）
+	DisableTaskPollingSleep               bool                  `json:"disable_task_polling_sleep,omitempty"` // 是否跳过异步任务轮询间隔
 	AwsKeyType                            AwsKeyType            `json:"aws_key_type,omitempty"`
 	ChannelMaintenanceEnabled             bool                  `json:"channel_maintenance_enabled,omitempty"`             // 是否对当前渠道启用维护响应
 	ChannelMaintenanceMessage             string                `json:"channel_maintenance_message,omitempty"`             // 当前渠道维护响应的纯文本消息
@@ -64,6 +65,7 @@ const (
 	AdvancedCustomConverterAnthropicMessagesToOpenAIChatCompletions     = "anthropic_messages_to_openai_chat_completions"
 	AdvancedCustomConverterOpenAIChatCompletionsToAnthropicMessages     = "openai_chat_completions_to_anthropic_messages"
 	AdvancedCustomConverterOpenAIChatCompletionsToOpenAIResponses       = "openai_chat_completions_to_openai_responses"
+	AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions       = "openai_responses_to_openai_chat_completions"
 	AdvancedCustomConverterGeminiGenerateContentToOpenAIChatCompletions = "gemini_generate_content_to_openai_chat_completions"
 	AdvancedCustomConverterOpenAIChatCompletionsToGeminiGenerateContent = "openai_chat_completions_to_gemini_generate_content"
 )
@@ -148,6 +150,7 @@ func IsAdvancedCustomConverterAllowed(converter string) bool {
 		AdvancedCustomConverterAnthropicMessagesToOpenAIChatCompletions,
 		AdvancedCustomConverterOpenAIChatCompletionsToAnthropicMessages,
 		AdvancedCustomConverterOpenAIChatCompletionsToOpenAIResponses,
+		AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions,
 		AdvancedCustomConverterGeminiGenerateContentToOpenAIChatCompletions,
 		AdvancedCustomConverterOpenAIChatCompletionsToGeminiGenerateContent:
 		return true
@@ -239,6 +242,10 @@ func validateAdvancedCustomConverterPath(index int, incomingPath string, convert
 		AdvancedCustomConverterOpenAIChatCompletionsToOpenAIResponses,
 		AdvancedCustomConverterOpenAIChatCompletionsToGeminiGenerateContent:
 		if incomingPath == "/v1/chat/completions" {
+			return nil
+		}
+	case AdvancedCustomConverterOpenAIResponsesToOpenAIChatCompletions:
+		if incomingPath == "/v1/responses" {
 			return nil
 		}
 	case AdvancedCustomConverterGeminiGenerateContentToOpenAIChatCompletions:

@@ -38,7 +38,7 @@ import {
   USER_ROLES,
   isUserDeleted,
 } from '../constants'
-import { type User } from '../types'
+import type { User } from '../types'
 import { isUserApiRestricted, getUserApiRestrictedMessage } from '../lib/user-setting'
 import { DataTableRowActions } from './data-table-row-actions'
 

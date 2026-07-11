@@ -100,6 +100,7 @@ export interface ChannelOtherSettings {
   allow_inference_geo?: boolean
   allow_speed?: boolean
   claude_beta_query?: boolean
+  disable_task_polling_sleep?: boolean
   channel_maintenance_enabled?: boolean
   channel_maintenance_message?: string
   upstream_model_update_check_enabled?: boolean
@@ -132,6 +133,7 @@ export type AdvancedCustomConverter =
   | 'anthropic_messages_to_openai_chat_completions'
   | 'openai_chat_completions_to_anthropic_messages'
   | 'openai_chat_completions_to_openai_responses'
+  | 'openai_responses_to_openai_chat_completions'
   | 'gemini_generate_content_to_openai_chat_completions'
   | 'openai_chat_completions_to_gemini_generate_content'
 
