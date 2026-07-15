@@ -145,12 +145,23 @@ export const buildApiPayload = (
     seed: 'seed',
   };
 
+  const modelName = String(inputs.model || '').toLowerCase();
+  const omitPenalties =
+    modelName.includes('grok') || modelName.startsWith('composer-');
+
   Object.entries(parameterMappings).forEach(([key, param]) => {
     const enabled = parameterEnabled[key];
     const value = inputs[param];
     const hasValue = value !== undefined && value !== null;
 
     if (!enabled) {
+      return;
+    }
+
+    if (
+      omitPenalties &&
+      (param === 'frequency_penalty' || param === 'presence_penalty')
+    ) {
       return;
     }
 

@@ -234,6 +234,18 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure {
 		request.StreamOptions = nil
 	}
+	// Grok / xAI (incl. sub2api Grok pool) rejects frequency_penalty and
+	// presence_penalty with HTTP 400 even when the value is 0. Strip them so
+	// playground defaults and OpenAI-compatible clients keep working.
+	upstreamModel := strings.ToLower(info.UpstreamModelName)
+	originModel := strings.ToLower(info.OriginModelName)
+	if strings.Contains(upstreamModel, "grok") ||
+		strings.Contains(originModel, "grok") ||
+		strings.HasPrefix(upstreamModel, "composer-") ||
+		strings.HasPrefix(originModel, "composer-") {
+		request.FrequencyPenalty = nil
+		request.PresencePenalty = nil
+	}
 	if info.ChannelType == constant.ChannelTypeOpenRouter {
 		if len(request.Usage) == 0 {
 			request.Usage = json.RawMessage(`{"include":true}`)

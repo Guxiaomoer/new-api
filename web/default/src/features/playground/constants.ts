@@ -60,8 +60,10 @@ export const DEFAULT_PARAMETER_ENABLED: ParameterEnabled = {
   temperature: true,
   top_p: true,
   max_tokens: false,
-  frequency_penalty: true,
-  presence_penalty: true,
+  // Grok (and some other upstreams) reject frequency/presence_penalty with 400.
+  // Keep them off by default; users can still enable for OpenAI-compatible models.
+  frequency_penalty: false,
+  presence_penalty: false,
   seed: false,
 }
 

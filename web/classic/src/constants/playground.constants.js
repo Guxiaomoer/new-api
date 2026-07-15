@@ -99,8 +99,9 @@ export const DEFAULT_CONFIG = {
     temperature: true,
     top_p: true,
     max_tokens: false,
-    frequency_penalty: true,
-    presence_penalty: true,
+    // Grok upstream rejects these with 400; keep off by default.
+    frequency_penalty: false,
+    presence_penalty: false,
     seed: false,
   },
   systemPrompt: '',

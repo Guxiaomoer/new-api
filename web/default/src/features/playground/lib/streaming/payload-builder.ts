@@ -56,11 +56,16 @@ export function buildChatCompletionPayload(
     payload.max_tokens = config.max_tokens
   }
 
-  if (parameterEnabled.frequency_penalty) {
+  // Grok upstream rejects frequency_penalty / presence_penalty (any value, including 0).
+  const modelName = (config.model || '').toLowerCase()
+  const omitPenalties =
+    modelName.includes('grok') || modelName.startsWith('composer-')
+
+  if (parameterEnabled.frequency_penalty && !omitPenalties) {
     payload.frequency_penalty = config.frequency_penalty
   }
 
-  if (parameterEnabled.presence_penalty) {
+  if (parameterEnabled.presence_penalty && !omitPenalties) {
     payload.presence_penalty = config.presence_penalty
   }
 
