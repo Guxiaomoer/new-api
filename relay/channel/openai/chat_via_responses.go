@@ -198,6 +198,14 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		ID:      responseId,
 		Model:   info.UpstreamModelName,
 		Created: createAt,
+		// For the Claude target the Responses->Chat->Claude pipeline relies on a
+		// trailing usage-only chat chunk to drive the Claude converter's terminal
+		// state machine (content_block_stop -> message_delta -> message_stop).
+		// Without it the converter defers closing (waiting for usage that never
+		// arrives) and the Anthropic stream never terminates, so Claude Code
+		// hangs. The OpenAI target instead emits its own final usage below, so we
+		// only request the in-stream usage chunk for the Claude target.
+		IncludeUsage: info.RelayFormat == types.RelayFormatClaude,
 	})
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)

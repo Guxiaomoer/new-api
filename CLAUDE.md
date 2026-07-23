@@ -1,5 +1,12 @@
 # CLAUDE.md — Project Conventions for new-api
 
+## Vault
+
+项目非代码产出（分析结果、清理列表、运维记录、进度文档）写入 Vault 项目目录：
+`D:\Desktop\金正伟\AI记忆\项目\D--projectAI-new-api-guxiaomo\`
+
+不要往 `scripts/`、`docs/`、根目录散落。
+
 ## Overview
 
 This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI providers (OpenAI, Claude, Gemini, Azure, AWS Bedrock, etc.) behind a unified API, with user management, billing, rate limiting, and an admin dashboard.
