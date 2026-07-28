@@ -120,7 +120,7 @@ func TestSharkeyChatRoomScan(t *testing.T) {
 	oldImpl := fetchSharkeyChatMessagesImpl
 	fetchSharkeyChatMessagesImpl = func(apiURL, accessToken, roomID string, limit int, sinceID string) ([]sharkeyChatMessage, error) {
 		return []sharkeyChatMessage{
-			{ID: "msg1", CreatedAt: "2026-06-10T00:00:00Z", Text: "hello sk-abcdefghijklmnopqrstuvwxyz and sk-abcdefghijklmnopqrstuvwxyz", FromUserID: "user1", ToRoomID: "testroom"},
+			{ID: "msg1", CreatedAt: "2026-06-10T00:00:00Z", Text: "hello sk-abcdefghijklmnopqrstuvwxyz only once", FromUserID: "user1", ToRoomID: "testroom"},
 			{ID: "msg2", CreatedAt: "2026-06-10T00:01:00Z", Text: "another key sk-BIAzRn6jCszMRuF4RM6chp608jJkxfqL here", FromUserID: "user2", ToRoomID: "testroom"},
 			{ID: "msg3", CreatedAt: "2026-06-10T00:02:00Z", Text: "no key here", FromUserID: "user3", ToRoomID: "testroom"},
 		}, nil

@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/community_sync_setting"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -76,9 +76,9 @@ func TestRunCommunitySyncRestrictsOnlyUsersOutsideCommunityAndSkipsProtected(t *
 	restrictedBytes, err := common.Marshal(restricted)
 	require.NoError(t, err)
 
-	require.NoError(t, db.Create(&model.User{Username: "member", DisplayName: "Community User", Email: "member@example.com", Setting: string(restrictedBytes)}).Error)
-	require.NoError(t, db.Create(&model.User{Username: "outsider", DisplayName: "Outsider", Email: "outsider@example.com"}).Error)
-	require.NoError(t, db.Create(&model.User{Username: "1456671048@qq.com", DisplayName: "Root", Email: "1456671048@qq.com"}).Error)
+	require.NoError(t, db.Create(&model.User{Username: "member", DisplayName: "Community User", Email: "member@example.com", AffCode: "mem1", Setting: string(restrictedBytes)}).Error)
+	require.NoError(t, db.Create(&model.User{Username: "outsider", DisplayName: "Outsider", Email: "outsider@example.com", AffCode: "out1"}).Error)
+	require.NoError(t, db.Create(&model.User{Username: "1456671048@qq.com", DisplayName: "Root", Email: "1456671048@qq.com", AffCode: "root"}).Error)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		members := []CommunityMember{{ID: "m1"}}
