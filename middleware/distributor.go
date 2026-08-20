@@ -532,9 +532,6 @@ func bestEffortGlobalMaintenanceModelRequest(c *gin.Context) *ModelRequest {
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/audio/translations") || strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") {
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "whisper-1")
 	}
-	if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") && modelRequest.Model != "" {
-		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
-	}
 	return modelRequest
 }
 

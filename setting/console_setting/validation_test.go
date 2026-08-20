@@ -24,10 +24,19 @@ func TestValidateAnnouncementsRejectsOverCharacterLimit(t *testing.T) {
 }
 
 func TestValidateAnnouncementsExtraCountsUnicodeCharacters(t *testing.T) {
-	extra := strings.Repeat("说", 200)
+	extra := strings.Repeat("说", 100)
 	announcements := `[{"content":"公告","publishDate":"2026-06-14T00:00:00Z","type":"default","extra":"` + extra + `"}]`
 
 	if err := validateAnnouncements(announcements); err != nil {
-		t.Fatalf("expected Chinese extra at 200 characters to pass, got %v", err)
+		t.Fatalf("expected Chinese extra at 100 characters to pass, got %v", err)
+	}
+}
+
+func TestValidateAnnouncementsRejectsExtraOverCharacterLimit(t *testing.T) {
+	extra := strings.Repeat("说", 101)
+	announcements := `[{"content":"公告","publishDate":"2026-06-14T00:00:00Z","type":"default","extra":"` + extra + `"}]`
+
+	if err := validateAnnouncements(announcements); err == nil {
+		t.Fatal("expected announcement extra over 100 characters to fail")
 	}
 }

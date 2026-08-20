@@ -72,10 +72,13 @@ func TestGetCompletionRatioInfo_NonClaudeOpenAIHardcodedModelStaysLockedWithOver
 	}
 }
 
-func TestGetCompletionRatio_DefaultCompletionRatioDoesNotOverrideHardcoded(t *testing.T) {
+// gpt-image-1 没有 hardcoded locked 分支：getHardcodedCompletionModelRatio 对
+// gpt-* 只做默认 fallthrough (2, false)，因此补全倍率落到 completionRatioMap，
+// 命中 defaultCompletionRatio 的 8（与上游定价意图一致）。
+func TestGetCompletionRatio_GptImageFallsBackToDefaultCompletionRatio(t *testing.T) {
 	resetCompletionRatiosForTest(t)
 
-	if got := GetCompletionRatio("gpt-image-1"); got != 2 {
-		t.Fatalf("GetCompletionRatio() = %v, want hardcoded ratio 2", got)
+	if got := GetCompletionRatio("gpt-image-1"); got != 8 {
+		t.Fatalf("GetCompletionRatio() = %v, want 8 (defaultCompletionRatio)", got)
 	}
 }
