@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	hostreasoning "github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -415,6 +416,23 @@ func GetDefaultModelPriceMap() map[string]float64 {
 	return defaultModelPrice
 }
 
+func GetDefaultPricingMaps() map[string]map[string]float64 {
+	defaults := map[string]map[string]float64{
+		"ModelPrice": defaultModelPrice, "ModelRatio": defaultModelRatio,
+		"CompletionRatio": defaultCompletionRatio, "CacheRatio": defaultCacheRatio,
+		"CreateCacheRatio": defaultCreateCacheRatio, "ImageRatio": defaultImageRatio,
+		"AudioRatio": defaultAudioRatio, "AudioCompletionRatio": defaultAudioCompletionRatio,
+	}
+	result := make(map[string]map[string]float64, len(defaults))
+	for key, values := range defaults {
+		result[key] = make(map[string]float64, len(values))
+		for name, value := range values {
+			result[key][name] = value
+		}
+	}
+	return result
+}
+
 func CompletionRatio2JSONString() string {
 	return completionRatioMap.MarshalJSONString()
 }
@@ -750,6 +768,16 @@ func GetAudioRatioCopy() map[string]float64 {
 
 func GetAudioCompletionRatioCopy() map[string]float64 {
 	return audioCompletionRatioMap.ReadAll()
+}
+
+func RoutingMatchModelName(name string) string {
+	return FormatMatchingModelName(hostreasoning.BaseModelName(name))
+}
+
+func HasConfiguredModelRatio(name string) bool {
+	name = FormatMatchingModelName(name)
+	_, ok := modelRatioMap.Get(name)
+	return ok
 }
 
 // 转换模型名，减少渠道必须配置各种带参数模型
