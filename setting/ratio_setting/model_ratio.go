@@ -493,26 +493,19 @@ func ResolveCompletionRatio(name string, configured *float64) CompletionRatioInf
 	}
 }
 
+// getConfiguredCompletionRatioOverride lets an explicitly configured ratio beat a
+// hardcoded lock for OpenAI/Claude families. It resolves the caller's snapshot
+// only, so a draft that omits CompletionRatio never inherits saved settings.
 func getConfiguredCompletionRatioOverride(name string, configured *float64) (float64, bool) {
-	if !shouldCompletionRatioOverrideHardcoded(name) {
+	if configured == nil || !shouldCompletionRatioOverrideHardcoded(name) {
 		return 0, false
 	}
 
-	ratio, ok := completionRatioMap.Get(name)
-	if !ok {
-		return 0, false
-	}
-	if configured != nil && *configured != ratio {
-		// A draft snapshot resolves against its own values, not saved settings.
+	if defaultRatio, hasDefault := defaultCompletionRatio[name]; hasDefault && *configured == defaultRatio {
 		return 0, false
 	}
 
-	defaultRatio, hasDefault := defaultCompletionRatio[name]
-	if hasDefault && ratio == defaultRatio {
-		return 0, false
-	}
-
-	return ratio, true
+	return *configured, true
 }
 
 func shouldCompletionRatioOverrideHardcoded(name string) bool {
