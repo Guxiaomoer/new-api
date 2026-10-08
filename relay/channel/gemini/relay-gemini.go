@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 func buildUsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTokens int) dto.Usage {
@@ -74,18 +75,27 @@ func geminiResponseUsageText(response *dto.GeminiChatResponse) string {
 			if part.Text != "" {
 				text.WriteString(part.Text)
 			}
+			// Function calls are most of an agent turn's output.
+			if part.FunctionCall != nil {
+				text.WriteString(part.FunctionCall.FunctionName)
+				args, _ := common.Marshal(part.FunctionCall.Arguments)
+				text.Write(args)
+			}
 		}
 	}
 	return text.String()
 }
 
-func markGeminiGoogleSearchCall(c *gin.Context, response *dto.GeminiChatResponse) {
-	if c == nil || response == nil {
+// markGeminiGoogleSearchCall bills one google_search call when any candidate
+// was grounded. Google bills per grounded prompt and reports no call count, so
+// repeated grounded frames stay at one.
+func markGeminiGoogleSearchCall(info *relaycommon.RelayInfo, response *dto.GeminiChatResponse) {
+	if info == nil || response == nil {
 		return
 	}
 	for _, candidate := range response.Candidates {
 		if candidate.GroundingMetadata != nil && len(candidate.GroundingMetadata.WebSearchQueries) > 0 {
-			c.Set("gemini_google_search_call", true)
+			info.SetBillableToolCount(dto.BuildInToolGoogleSearch, 1)
 			return
 		}
 	}
@@ -181,10 +191,22 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		}
 
 		if len(geminiResponse.Candidates) == 0 && geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
+			info.PerformanceBusinessRejection = true
 			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
 		}
+		info.ObserveResponseModel(gjson.Get(data, "modelVersion").Str)
+		for _, candidate := range geminiResponse.Candidates {
+			if candidate.FinishReason == nil || *candidate.FinishReason == "" || *candidate.FinishReason == "FINISH_REASON_UNSPECIFIED" {
+				continue
+			}
+			switch *candidate.FinishReason {
+			case "SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "IMAGE_SAFETY", "IMAGE_PROHIBITED_CONTENT", "IMAGE_RECITATION":
+				info.PerformanceBusinessRejection = true
+			}
+			info.StreamStatus.MarkCompleted()
+		}
 
-		markGeminiGoogleSearchCall(c, &geminiResponse)
+		markGeminiGoogleSearchCall(info, &geminiResponse)
 		countGeminiBillableFunctionCalls(info, &geminiResponse)
 
 		// 统计图片数量
@@ -193,11 +215,9 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 				if part.InlineData != nil && part.InlineData.MimeType != "" {
 					imageCount++
 				}
-				if part.Text != "" {
-					responseText.WriteString(part.Text)
-				}
 			}
 		}
+		responseText.WriteString(geminiResponseUsageText(&geminiResponse))
 
 		// 更新使用量统计
 		if metadata := geminiResponse.GetUsageMetadata(); dto.HasGeminiUsageMetadataTokens(metadata) {
@@ -216,6 +236,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			sr.Stop(streamErr)
 		}
 	})
+	info.StreamStatus.RequireTerminal()
 
 	if !hasBillableUsageMetadata {
 		if info.ReceivedResponseCount > 0 {
@@ -370,13 +391,15 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
-	markGeminiGoogleSearchCall(c, &geminiResponse)
+	info.ObserveResponseModel(gjson.GetBytes(responseBody, "modelVersion").Str)
+	markGeminiGoogleSearchCall(info, &geminiResponse)
 	countGeminiBillableFunctionCalls(info, &geminiResponse)
 	if len(geminiResponse.Candidates) == 0 {
 		usage := buildUsageFromGeminiResponse(c, info, &geminiResponse)
 
 		var newAPIError *types.NewAPIError
 		if geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
+			info.PerformanceBusinessRejection = true
 			common.SetContextKey(c, constant.ContextKeyAdminRejectReason, fmt.Sprintf("gemini_block_reason=%s", *geminiResponse.PromptFeedback.BlockReason))
 			newAPIError = types.NewOpenAIError(
 				errors.New("request blocked by Gemini API: "+*geminiResponse.PromptFeedback.BlockReason),

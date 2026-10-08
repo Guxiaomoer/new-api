@@ -12,14 +12,12 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
-	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
-	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 )
@@ -157,23 +155,17 @@ func calculateTextToolCallSurcharge(ctx *gin.Context, relayInfo *relaycommon.Rel
 			if tool == nil {
 				continue
 			}
-			items = collectToolSurchargeItem(items, name, tool.CallCount, summary.ModelName)
+			count := tool.CallCount
+			if count > relaycommon.MaxBillableToolCallCount {
+				logger.LogWarn(ctx, "tool surcharge call count clamped: tool=%s count=%d", name, count)
+				count = relaycommon.MaxBillableToolCallCount
+			}
+			items = collectToolSurchargeItem(items, name, count, summary.ModelName)
 		}
 	}
 	if relayInfo.RelayMode != relayconstant.RelayModeResponses &&
 		strings.HasSuffix(summary.ModelName, "search-preview") {
 		items = collectToolSurchargeItem(items, dto.BuildInToolWebSearchPreview, 1, summary.ModelName)
-	}
-
-	items = collectToolSurchargeItem(
-		items,
-		dto.BuildInToolWebSearch,
-		ctx.GetInt("claude_web_search_requests"),
-		summary.ModelName,
-	)
-
-	if ctx.GetBool("gemini_google_search_call") {
-		items = collectToolSurchargeItem(items, dto.BuildInToolGoogleSearch, 1, summary.ModelName)
 	}
 
 	summary.ToolSurchargeItems = mergeToolSurchargeItems(items)
@@ -549,7 +541,5 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
 	})
-	gopool.Go(func() {
-		perfmetrics.RecordRelaySample(relayInfo, true, int64(summary.CompletionTokens))
-	})
+	relayInfo.PerformanceOutputTokens = int64(summary.CompletionTokens)
 }
