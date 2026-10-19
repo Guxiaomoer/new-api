@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"math/rand"
 	"time"
 

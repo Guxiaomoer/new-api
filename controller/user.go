@@ -1107,7 +1107,7 @@ func ManageUser(c *gin.Context) {
 			ids = []int{req.Id}
 		}
 		if len(ids) == 0 {
-			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			common.ApiErrorT(c, "Invalid parameters")
 			return
 		}
 
@@ -1119,17 +1119,17 @@ func ManageUser(c *gin.Context) {
 			return
 		}
 		if len(users) != len(ids) {
-			common.ApiErrorI18n(c, i18n.MsgUserNotExists)
+			common.ApiErrorT(c, "User does not exist")
 			return
 		}
 		for _, target := range users {
 			// Root 用户可以限制/解除限制自己的 API（测试用途）
 			if target.Role == common.RoleRootUser && target.Id != myId {
-				common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
+				common.ApiErrorT(c, "No permission to update users of same or higher permission level")
 				return
 			}
 			if target.Id != myId && !canManageTargetRole(myRole, target.Role) {
-				common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
+				common.ApiErrorT(c, "No permission to update users of same or higher permission level")
 				return
 			}
 		}

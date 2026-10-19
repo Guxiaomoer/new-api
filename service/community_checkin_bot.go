@@ -189,14 +189,15 @@ func processCommunityCheckinMessage(ctx context.Context, syncCfg community_sync_
 	quotaAwarded := int(float64(usd) * common.QuotaPerUnit)
 	checkin, err := model.UserCheckinWithQuota(user.Id, quotaAwarded)
 	if err != nil {
-		if strings.Contains(err.Error(), "今日已签到") {
+		var message *common.Message
+		if errors.As(err, &message) && message.Key == "Already checked in today" {
 			return sendCommunityCheckinReply(ctx, syncCfg, fmt.Sprintf("@%s 今天已经签到过啦，明天再来吧。", username))
 		}
 		return err
 	}
 
 	result.RewardedCount++
-	model.RecordLog(user.Id, model.LogTypeSystem, fmt.Sprintf("社区群签到，获得额度 %s", logger.LogQuota(checkin.QuotaAwarded)))
+	model.RecordLog(user.Id, model.LogTypeSystem, common.NewMessage("Community check-in, received {{quota}}", map[string]any{"quota": logger.LogQuota(checkin.QuotaAwarded)}))
 	return sendCommunityCheckinReply(ctx, syncCfg, fmt.Sprintf("@%s 签到成功，获得 $%d 额度。", username, usd))
 }
 
