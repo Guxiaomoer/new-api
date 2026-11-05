@@ -394,6 +394,10 @@ export type OperationsSettings = {
   'community_checkin_bot.last_message_id': string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
+  EmailProvider: 'smtp' | 'resend'
+  ResendApiKey: string
+  ResendKeyConfigured: boolean
+  ResendFrom: string
   SMTPServer: string
   SMTPPort: string
   SMTPAccount: string
@@ -494,6 +498,7 @@ export type UpstreamConfig = {
 }
 
 export type FetchUpstreamRatiosRequest = {
+  include_unchanged?: boolean
   upstreams: UpstreamConfig[]
   timeout: number
 }
