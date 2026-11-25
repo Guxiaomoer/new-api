@@ -105,6 +105,7 @@ export type TapDescribe = {
   roles: Record<string, number>
   tools: number
   tool_calls: number
+  tool_names?: string[]
   system_chars: number
 }
 

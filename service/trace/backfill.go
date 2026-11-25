@@ -1,6 +1,10 @@
 package trace
 
-import "github.com/QuantumNous/new-api/model"
+import (
+	"sort"
+
+	"github.com/QuantumNous/new-api/model"
+)
 
 // Backfill 按入库的 UA 重算客户端归类，再给仍未挂父的辅助调用重新找主会话。
 // 分类规则会变，历史数据不该因此失效。
@@ -45,12 +49,15 @@ func Describe(body map[string]any) map[string]any {
 		roles[role]++
 		toolCalls += len(toolCallNames(msg))
 	}
+	tools := bodyToolNames(body)
+	sort.Strings(tools)
 	return map[string]any{
 		"kind":         AuxKind(body),
 		"messages":     len(msgs),
 		"roles":        roles,
-		"tools":        len(bodyToolNames(body)),
+		"tools":        len(tools),
 		"tool_calls":   toolCalls,
+		"tool_names":   tools,
 		"system_chars": len(bodySystemText(body)),
 	}
 }

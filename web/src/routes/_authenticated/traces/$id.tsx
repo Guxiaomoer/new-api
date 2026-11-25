@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
-import { TraceSessionDetail } from '@/features/traces'
+import { Traces } from '@/features/traces'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -32,5 +32,5 @@ export const Route = createFileRoute('/_authenticated/traces/$id')({
 
 function TraceDetailRoute() {
   const { id } = Route.useParams()
-  return <TraceSessionDetail id={Number(id)} />
+  return <Traces initialSessionId={Number(id)} />
 }
