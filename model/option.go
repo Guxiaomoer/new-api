@@ -209,6 +209,12 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticRetryStatusCodes"] = operation_setting.AutomaticRetryStatusCodesToString()
 	common.OptionMap["ExposeRatioEnabled"] = strconv.FormatBool(ratio_setting.IsExposeRatioEnabled())
 
+	// 调用抓包（Trace Tap）：默认关闭，开启即落盘完整对话内容。
+	common.OptionMap[TapOptionEnabled] = "false"
+	common.OptionMap[TapOptionMaxBody] = strconv.Itoa(512*1024)
+	common.OptionMap[TapOptionRetentionDays] = "7"
+	common.OptionMap[TapOptionMaxSessions] = "300"
+
 	// 自动添加所有注册的模型配置
 	modelConfigs := config.GlobalConfig.ExportAllConfigs()
 	maps.Copy(common.OptionMap, modelConfigs)

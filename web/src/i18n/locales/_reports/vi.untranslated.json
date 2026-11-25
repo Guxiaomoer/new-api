@@ -1,3 +1,10 @@
 {
-  "Configured, leave empty to keep unchanged": "Configured, leave empty to keep unchanged"
+  "Search model, fingerprint or message": "Search model, fingerprint or message",
+  "Nothing to reconstruct": "Nothing to reconstruct",
+  "Compare with previous": "Compare with previous",
+  "Failed to load call trace settings": "Failed to load call trace settings",
+  "Failed to load call traces": "Failed to load call traces",
+  "Delete this session and all its turns?": "Delete this session and all its turns?",
+  "This turn was clipped to the body limit. Diff falls back to digests.": "This turn was clipped to the body limit. Diff falls back to digests.",
+  "Turn on recording and send one request; the client payload, upstream payload and both responses will show up here.": "Turn on recording and send one request; the client payload, upstream payload and both responses will show up here."
 }

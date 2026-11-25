@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/trace"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
@@ -486,6 +487,9 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	}
 
 	common2.SetContextKey(c, appconstant.ContextKeyUpstreamRequestOrigin, req.URL.Scheme+"://"+req.URL.Host)
+	if rec := trace.FromGin(c); rec != nil {
+		rec.AttachUpstreamRequest(req)
+	}
 	resp, err := relayClient.Do(req)
 	if err != nil {
 		logger.LogError(c, common2.LogText("do request failed: %s", err.Error()))
@@ -493,6 +497,9 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	}
 	if resp == nil {
 		return nil, errors.New("resp is nil")
+	}
+	if rec := trace.FromGin(c); rec != nil {
+		rec.AttachUpstreamResponse(resp)
 	}
 	if common2.DebugEnabled {
 		policy := service.NormalizeHTTPTransportPolicy(info.ChannelSetting)

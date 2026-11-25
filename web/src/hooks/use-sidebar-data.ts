@@ -176,6 +176,12 @@ export function useSidebarData(badges: SidebarBadges = {}): SidebarData {
             requiredRole: ROLE.SUPER_ADMIN,
           },
           {
+            title: t('Call Traces'),
+            url: '/traces',
+            icon: Activity,
+            requiredRole: ROLE.SUPER_ADMIN,
+          },
+          {
             title: t('System Settings'),
             url: '/system-settings/site',
             activeUrls: ['/system-settings'],

@@ -370,6 +370,27 @@ func SetApiRouter(router *gin.Engine) {
 			interceptLogRoute.DELETE("/", controller.DeleteInterceptLogs)
 		}
 
+		// 调用抓包：配置读取任何登录用户可用，会话内容与写操作仅管理员。
+		tapRoute := apiRouter.Group("/tap")
+		tapRoute.Use(middleware.UserAuth())
+		{
+			tapRoute.GET("/config", controller.GetTapConfig)
+		}
+		tapAdminRoute := apiRouter.Group("/tap")
+		tapAdminRoute.Use(middleware.AdminAuth())
+		{
+			tapAdminRoute.PUT("/config", controller.UpdateTapConfig)
+			tapAdminRoute.POST("/backfill", controller.BackfillTap)
+			tapAdminRoute.POST("/prune", controller.PruneTap)
+			tapAdminRoute.POST("/clear", controller.ClearTap)
+			tapAdminRoute.GET("/sessions", controller.ListTapSessions)
+			tapAdminRoute.GET("/sessions/:id", controller.GetTapSession)
+			tapAdminRoute.DELETE("/sessions/:id", controller.DeleteTapSession)
+			tapAdminRoute.GET("/sessions/:id/export", controller.ExportTapSession)
+			tapAdminRoute.GET("/turns/:id", controller.GetTapTurn)
+			tapAdminRoute.GET("/diff", controller.DiffTapTurns)
+		}
+
 		systemTaskRoute := apiRouter.Group("/system-task")
 		systemTaskRoute.Use(middleware.RootAuth())
 		{

@@ -26,11 +26,39 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/trace"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
+
+// tapProtocol 只抓文本对话类调用：图片、音频、向量、重排这些没有多轮上下文，
+// 记下来只会把会话列表冲乱。
+func tapProtocol(relayFormat types.RelayFormat, relayMode int) (string, bool) {
+	switch relayMode {
+	case relayconstant.RelayModeEmbeddings, relayconstant.RelayModeModerations,
+		relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits,
+		relayconstant.RelayModeEdits, relayconstant.RelayModeAudioSpeech,
+		relayconstant.RelayModeAudioTranscription, relayconstant.RelayModeAudioTranslation,
+		relayconstant.RelayModeRerank, relayconstant.RelayModeRealtime,
+		relayconstant.RelayModeAlphaSearch, relayconstant.RelayModeToolsSearch,
+		relayconstant.RelayModeToolsFetch:
+		return "", false
+	}
+	switch relayFormat {
+	case types.RelayFormatClaude:
+		return "anthropic", true
+	case types.RelayFormatGemini:
+		return "gemini", true
+	case types.RelayFormatOpenAI:
+		if relayMode == relayconstant.RelayModeResponses || relayMode == relayconstant.RelayModeResponsesCompact {
+			return "responses", true
+		}
+		return "chat", true
+	}
+	return "", false
+}
 
 func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	var err *types.NewAPIError
@@ -78,7 +106,19 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	var (
 		newAPIError *types.NewAPIError
 		ws          *websocket.Conn
+		tapRec      *trace.Recorder
 	)
+	// 注册在最外层：错误响应先写完，再落抓包，客户端看到的报文才完整。
+	defer func() {
+		if tapRec == nil {
+			return
+		}
+		errText := ""
+		if newAPIError != nil {
+			errText = newAPIError.Error()
+		}
+		tapRec.Finish(c, errText)
+	}()
 
 	if relayFormat == types.RelayFormatOpenAIRealtime {
 		var err error
@@ -162,6 +202,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	if relayFormat == types.RelayFormatClaude && relayInfo.IsStream && generalSettings.PingIntervalEnabled {
 		stopKeepAlive := helper.StartStreamKeepAlive(c, time.Duration(generalSettings.PingIntervalSeconds)*time.Second)
 		defer stopKeepAlive()
+	}
+
+	// 抓包挂在保活之后：保活 ping 是另一个 goroutine，先接管 writer 会让
+	// 首个客户端写入被 ping 抢走，首字延迟就失真了。
+	if protocol, ok := tapProtocol(relayFormat, relayInfo.RelayMode); ok {
+		tapRec = trace.Start(c, protocol, relayInfo.TokenId, c.GetString("token_name"))
 	}
 
 	if newAPIError = relay.PrepareRequestBilling(c, relayInfo); newAPIError != nil {
