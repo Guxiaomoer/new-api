@@ -36,7 +36,9 @@ func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.Han
 		middleware.Cache(),
 		middleware.ServeFrontendFiles(frontendFS),
 		func(c *gin.Context) {
-			if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
+			// 构建产物缺失时必须 404：回落到 index.html 会让浏览器把 HTML 当 JS 解析，
+			// 报出 Unexpected token '<'，而不是可识别的资源加载失败。
+			if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") || strings.HasPrefix(c.Request.RequestURI, "/static") {
 				controller.RelayNotFound(c)
 				return
 			}

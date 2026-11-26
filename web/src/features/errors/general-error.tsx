@@ -25,6 +25,12 @@ import { cn } from '@/lib/utils'
 
 const FEEDBACK_URL = 'https://github.com/QuantumNous/new-api/issues'
 
+// 部署后旧页面请求已下线的 chunk 时，静态服务常见两种情况：真正 404，
+// 或者回落到 index.html 后浏览器解析 JS 失败（Unexpected token '<'）。
+// 后者不叫 ChunkLoadError，但同样是「资源已被替换」，重载一次即可恢复。
+const STALE_ASSET_RE =
+  /Loading (CSS )?chunk .+ failed\.|Unexpected token '<'|unexpected token "<"|is not a valid JavaScript MIME type|Failed to fetch dynamically imported module/i
+
 type GeneralErrorProps = React.HTMLAttributes<HTMLDivElement> & {
   minimal?: boolean
   error?: unknown
@@ -49,8 +55,7 @@ export function GeneralError({
   useEffect(() => {
     if (
       !(error instanceof Error) ||
-      (error.name !== 'ChunkLoadError' &&
-        !/^Loading (CSS )?chunk .+ failed\./.test(error.message))
+      (error.name !== 'ChunkLoadError' && !STALE_ASSET_RE.test(error.message))
     ) {
       return
     }

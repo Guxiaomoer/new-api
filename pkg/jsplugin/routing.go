@@ -448,6 +448,7 @@ var (
 // decided at admission.
 var reservedRouteNamespaces = []string{
 	"/assets",
+	"/static",
 	"/setup",
 	"/v1/tasks",
 	"/console",
