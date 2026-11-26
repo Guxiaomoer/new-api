@@ -3,6 +3,7 @@ package trace
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -95,4 +96,16 @@ func TestReconstructSSEToolCallAndText(t *testing.T) {
 	require.Len(t, recon.ToolCalls, 1)
 	assert.Equal(t, "read", recon.ToolCalls[0].Name)
 	assert.JSONEq(t, `{"p":1}`, recon.ToolCalls[0].Arguments)
+}
+
+// 生产 PG 报过 22021：按字节截断把多字节字符切成半个，整行写入失败。
+func TestClipKeepsValidUTF8(t *testing.T) {
+	text := strings.Repeat("中", 4) // 12 bytes
+	got, cut := Clip(text, 7)
+	assert.True(t, cut)
+	assert.True(t, utf8.ValidString(got))
+	assert.Equal(t, strings.Repeat("中", 2), got)
+
+	broken := "ok\xff\xfe中"
+	assert.True(t, utf8.ValidString(clipString(broken, 64)))
 }

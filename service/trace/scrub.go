@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 var secretHeaders = map[string]struct{}{
@@ -100,16 +101,22 @@ func Scrub(text string) string {
 // Clip 截断正文并告知是否截断。
 func Clip(text string, limit int) (string, bool) {
 	if len(text) <= limit {
-		return text, false
+		return strings.ToValidUTF8(text, "�"), false
 	}
-	return text[:limit], true
+	return clipString(text, limit), true
 }
 
+// clipString 按字节截断，但退回完整的 rune 边界并把非法序列替换掉：
+// PostgreSQL 的 TEXT 列遇到半个汉字或二进制残留会整行写入失败。
 func clipString(text string, limit int) string {
-	if len(text) <= limit {
-		return text
+	if len(text) > limit {
+		cut := limit
+		for cut > 0 && !utf8.RuneStart(text[cut]) {
+			cut--
+		}
+		text = text[:cut]
 	}
-	return text[:limit]
+	return strings.ToValidUTF8(text, "�")
 }
 
 // CleanExternal 外部文本入库前去掉换行与控制字符，避免详情页被伪造出额外行。
