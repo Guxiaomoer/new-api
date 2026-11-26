@@ -20,6 +20,7 @@ import { useEffect } from 'react'
 
 const RELOAD_STAMP_KEY = 'build-watch:reloaded-at'
 const RELOAD_COOLDOWN_MS = 10 * 60 * 1000
+const CHECK_INTERVAL_MS = 60 * 1000
 const INDEX_SCRIPT_RE = /\/static\/js\/index\.[A-Za-z0-9]+\.js/
 
 function runningIndexScript(): string | null {
@@ -73,6 +74,11 @@ export function useBuildWatch() {
       if (document.visibilityState === 'visible') void check()
     }
     document.addEventListener('visibilitychange', onVisibility)
-    return () => document.removeEventListener('visibilitychange', onVisibility)
+    // 长时间停在页面上不切换标签时，visibilitychange 不会触发。
+    const timer = window.setInterval(() => void check(), CHECK_INTERVAL_MS)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.clearInterval(timer)
+    }
   }, [])
 }
