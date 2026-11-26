@@ -35,6 +35,7 @@ import {
   formatDuration,
   headerPairs,
   prettyJson,
+  reconOf,
   requestDoc,
   rewrittenKeys,
 } from '../lib'
@@ -96,6 +97,16 @@ export function TurnTabs({ turnId, prevTurnId }: Props) {
     setFormat('preview')
     setExpandAll(false)
     setTab('request')
+  }
+
+  // 原版按视角选解析结果，客户端解析为空时回落到上游解析；
+  // 服务端把上游解析存进 recon_json，所以网关视角直接用它。
+  const pickRecon = (): TapRecon | null => {
+    if (!turn) return null
+    const client = turnQuery.data?.client_recon ?? null
+    const upstream = reconOf(turn)
+    if (view === 'client') return client ?? upstream
+    return upstream ?? client
   }
 
   return (
@@ -163,7 +174,7 @@ export function TurnTabs({ turnId, prevTurnId }: Props) {
           <OverviewTab
             turn={turn}
             describe={turnQuery.data?.describe ?? null}
-            recon={turnQuery.data?.client_recon ?? null}
+            recon={pickRecon()}
           />
         )}
 
@@ -182,7 +193,7 @@ export function TurnTabs({ turnId, prevTurnId }: Props) {
             turn={turn}
             view={view}
             format={format}
-            clientRecon={turnQuery.data?.client_recon ?? null}
+            clientRecon={pickRecon()}
             expandAll={expandAll}
             onToggleExpand={() => setExpandAll((prev) => !prev)}
           />

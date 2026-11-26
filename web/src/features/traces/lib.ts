@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { toIntlLocale } from '@/i18n/languages'
 import { formatCompactNumber, formatTimestampRelative } from '@/lib/format'
 import type { TapRecon, TapTurnDetail } from './types'
 
@@ -53,8 +54,9 @@ export function formatSize(bytes: number): string {
   return `${(value / 1048576).toFixed(2)} MB`
 }
 
+// i18next 的语言码是 zhCN/zhTW 这类非标准写法，Intl 会直接抛 RangeError。
 export function relativeTime(ts: number, locale: string): string {
-  return formatTimestampRelative(ts, 'seconds', locale)
+  return formatTimestampRelative(ts, 'seconds', toIntlLocale(locale))
 }
 
 export function tokenPair(prompt: number, completion: number): string {
