@@ -53,7 +53,8 @@ const defaultOperationsSettings: OperationsSettings = {
   'community_sync.authorization': '',
   'community_sync.fingerprint': '',
   'community_sync.interval_minutes': 5,
-  'community_sync.protected_users': '1456671048@qq.com\nlufeng2820@163.com',
+  'community_sync.protected_users':
+    '1456671048@qq.com\nlufeng2820@163.com',
   'community_checkin_bot.enabled': false,
   'community_checkin_bot.bot_user_id': 'amlarbic93',
   'community_checkin_bot.bot_name': 'Guxiaomo',
@@ -82,6 +83,7 @@ const defaultOperationsSettings: OperationsSettings = {
   LogConsumeEnabled: false,
   'log_setting.user_export_enabled': true,
   'log_setting.max_range_days': 365,
+  'system_task_setting.retention_days': 30,
   'performance_setting.disk_cache_enabled': false,
   'performance_setting.disk_cache_threshold_mb': 10,
   'performance_setting.disk_cache_max_size_mb': 1024,

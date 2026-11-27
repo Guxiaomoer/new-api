@@ -212,8 +212,7 @@ func channelMatchesExpectedTaskPlugin(c *gin.Context, channel *model.Channel, ex
 	if !exists || !ok || pinned.Generation == nil || pinned.Plugin == nil || pinned.Plugin.Meta.Key != expected {
 		return false
 	}
-	plugin, ok := pinned.Generation.GetByChannelType(channel.Type)
-	return ok && plugin == pinned.Plugin
+	return slices.Contains(pinned.Plugin.Meta.ChannelTypes, channel.Type)
 }
 
 // pinnedCandidatePlugins returns the plugins a pinned shared host endpoint, or
@@ -267,26 +266,29 @@ func pinnedEndpointCandidateForChannel(c *gin.Context, channel *model.Channel, e
 		if candidate.Meta.Key == expected {
 			expectedOwned = true
 		}
+		// A New API channel may bind several candidates, and a built-in
+		// channel type may be declared by several. The first candidate in
+		// generation order that the channel serves executes, so the billing
+		// provider depends only on the channel and the request, never on
+		// which channels an earlier retry attempt happened to try.
+		if selected >= 0 {
+			continue
+		}
 		if channel.Type == constant.ChannelTypeTaskPlugin || channel.Type == constant.ChannelTypeNewAPI {
-			// A New API channel may bind several candidates. The first bound
-			// candidate in generation order executes, so the billing provider
-			// depends only on the channel and the request, never on which
-			// channels an earlier retry attempt happened to try.
-			if selected < 0 && setting.BindsTaskPlugin(candidate.Meta.Key) {
+			if setting.BindsTaskPlugin(candidate.Meta.Key) {
 				selected = index
 			}
 			continue
 		}
-		plugin, indexed := generation.GetByChannelType(channel.Type)
-		if indexed && plugin == candidate {
+		if slices.Contains(candidate.Meta.ChannelTypes, channel.Type) {
 			selected = index
 		}
 	}
 	return selected, expectedOwned && selected >= 0
 }
 
-// getModelFromRequest reads model information from the request.
-// It handles Content-Type automatically:
+// getModelFromRequest 从请求中读取模型信息
+// 根据 Content-Type 自动处理：
 // - application/json
 // - application/x-www-form-urlencoded
 // - multipart/form-data
@@ -314,18 +316,37 @@ func getModelFromJSONBody(c *gin.Context) (*ModelRequest, error) {
 	if err != nil {
 		return nil, err
 	}
-	requestBody, err := storage.Bytes()
+	var keys jsonModelKeyCounter
+	if storage.IsDisk() {
+		reader, err := storage.NewReader()
+		if err != nil {
+			return nil, err
+		}
+		defer reader.Close()
+		valid, err := ojson.ValidReader(io.TeeReader(reader, &keys))
+		if err != nil {
+			return nil, err
+		}
+		if !valid {
+			return nil, errors.New("invalid JSON request body")
+		}
+	} else {
+		requestBody, err := storage.Bytes()
+		if err != nil {
+			return nil, err
+		}
+		if !ojson.ValidBytes(requestBody) {
+			return nil, errors.New("invalid JSON request body")
+		}
+		_, _ = keys.Write(requestBody)
+	}
+	if keys.count > 1 {
+		return nil, errors.New("model must be provided once")
+	}
+	values, err := common.ReadBodyJSONFields(storage, "model", "group")
 	if err != nil {
 		return nil, err
 	}
-	if !ojson.ValidBytes(requestBody) {
-		return nil, errors.New("invalid JSON request body")
-	}
-	if countTopLevelJSONKey(requestBody, "model") > 1 {
-		return nil, errors.New("model must be provided once")
-	}
-
-	values := ojson.GetManyBytes(requestBody, "model", "group")
 	model, err := getJSONStringValue(values[0], "model")
 	if err != nil {
 		return nil, err
@@ -346,62 +367,74 @@ func getModelFromJSONBody(c *gin.Context) (*ModelRequest, error) {
 	}, nil
 }
 
-func countTopLevelJSONKey(data []byte, target string) int {
-	depth := 0
-	inString := false
-	escaped := false
-	stringStart := 0
-	expectingKey := false
-	count := 0
-	for index, current := range data {
-		if inString {
-			if escaped {
-				escaped = false
+// jsonModelKeyCounter counts top-level model keys while JSON validation reads
+// the body. An escaped spelling of "model" occupies at most 32 bytes with quotes.
+type jsonModelKeyCounter struct {
+	depth        int
+	rootObject   bool
+	inString     bool
+	escaped      bool
+	expectingKey bool
+	isKey        bool
+	key          [32]byte
+	keyLen       int
+	count        int
+}
+
+func (c *jsonModelKeyCounter) Write(data []byte) (int, error) {
+	for _, current := range data {
+		if c.inString {
+			if c.isKey {
+				if c.keyLen < len(c.key) {
+					c.key[c.keyLen] = current
+				}
+				c.keyLen++
+			}
+			if c.escaped {
+				c.escaped = false
 				continue
 			}
 			if current == '\\' {
-				escaped = true
+				c.escaped = true
 				continue
 			}
 			if current != '"' {
 				continue
 			}
-			inString = false
-			if depth == 1 && expectingKey {
-				key := string(data[stringStart:index])
-				var decodedKey string
-				if common.Unmarshal(data[stringStart-1:index+1], &decodedKey) == nil {
-					key = decodedKey
+			c.inString = false
+			if c.isKey {
+				var key string
+				if c.keyLen <= len(c.key) && common.Unmarshal(c.key[:c.keyLen], &key) == nil && key == "model" {
+					c.count++
 				}
-				cursor := index + 1
-				for cursor < len(data) && (data[cursor] == ' ' || data[cursor] == '\t' || data[cursor] == '\r' || data[cursor] == '\n') {
-					cursor++
-				}
-				if cursor < len(data) && data[cursor] == ':' && key == target {
-					count++
-				}
-				expectingKey = false
+				c.expectingKey = false
+				c.isKey = false
 			}
 			continue
 		}
 		switch current {
 		case '"':
-			inString = true
-			stringStart = index + 1
-		case '{':
-			depth++
-			if depth == 1 {
-				expectingKey = true
+			c.inString = true
+			c.isKey = c.rootObject && c.depth == 1 && c.expectingKey
+			if c.isKey {
+				c.key[0], c.keyLen = '"', 1
 			}
-		case '}':
-			depth--
+		case '{':
+			c.depth++
+			if c.depth == 1 {
+				c.rootObject, c.expectingKey = true, true
+			}
+		case '[':
+			c.depth++
+		case '}', ']':
+			c.depth--
 		case ',':
-			if depth == 1 {
-				expectingKey = true
+			if c.depth == 1 {
+				c.expectingKey = true
 			}
 		}
 	}
-	return count
+	return len(data), nil
 }
 
 func getJSONStringValue(result ojson.Result, field string) (string, error) {
@@ -492,7 +525,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			c.Set("relay_mode", relayMode)
 		}
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
-		// Gemini API path: /v1beta/models/gemini-2.0-flash:generateContent
+		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
 		relayMode := relayconstant.RelayModeGemini
 		modelName := extractModelNameFromGeminiPath(c.Request.URL.Path)
 		if modelName != "" {
@@ -545,14 +578,14 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 
 			modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "tts-1")
 		} else if strings.HasPrefix(c.Request.URL.Path, "/v1/audio/translations") {
-			// Try reading the model from the request first.
+			// 先尝试从请求读取
 			if req, err := getModelFromRequest(c); err == nil && req.Model != "" {
 				modelRequest.Model = req.Model
 			}
 			modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "whisper-1")
 			relayMode = relayconstant.RelayModeAudioTranslation
 		} else if strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") {
-			// Try reading the model from the request first.
+			// 先尝试从请求读取
 			if req, err := getModelFromRequest(c); err == nil && req.Model != "" {
 				modelRequest.Model = req.Model
 			}
@@ -915,7 +948,19 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
 	common.SetContextKey(c, constant.ContextKeyChannelCreateTime, channel.CreatedTime)
 	common.SetContextKey(c, constant.ContextKeyChannelSetting, channel.GetSetting())
-	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
+	otherSettings := channel.GetOtherSettings()
+	// An ordinary request on a task plugin channel runs on the relay routes of
+	// its plugin, pinned for the request like a task relay pins its plugin.
+	var providerPlugin any
+	if channel.Type == constant.ChannelTypeTaskPlugin && c.GetString("expected_task_plugin_key") == "" {
+		generation := jsplugin.DefaultRegistry.Generation()
+		if plugin, ok := generation.Get(channel.GetSetting().TaskPluginKey); ok && plugin.Meta.HasProviderPart() {
+			providerPlugin = jsplugin.PinnedPlugin{Generation: generation, Plugin: plugin}
+			otherSettings.AdvancedCustom = plugin.Meta.ChannelRelayConfig(plugin.ChannelConfigFor(otherSettings.PluginConfig))
+		}
+	}
+	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, otherSettings)
+	common.SetContextKey(c, constant.ContextKeyProviderPlugin, providerPlugin)
 	switch channel.Type {
 	case constant.ChannelTypeTaskPlugin:
 		c.Set("task_plugin_key", channel.GetSetting().TaskPluginKey)
@@ -949,7 +994,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, true)
 		common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, index)
 	} else {
-		// Must be set to false, otherwise logs are wrong when retrying a single key.
+		// 必须设置为 false，否则在重试到单个 key 的时候会导致日志显示错误
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, false)
 	}
 	// c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", key))
@@ -958,7 +1003,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 
 	common.SetContextKey(c, constant.ContextKeySystemPromptOverride, false)
 
-	// TODO: unify api_version handling
+	// TODO: api_version统一
 	switch channel.Type {
 	case constant.ChannelTypeAzure:
 		c.Set("api_version", channel.Other)
@@ -980,24 +1025,30 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	return nil
 }
 
-// extractModelNameFromGeminiPath extracts the model name from a Gemini API URL path.
-// Example: /v1beta/models/gemini-2.0-flash:generateContent -> gemini-2.0-flash
+// extractModelNameFromGeminiPath 从 Gemini API URL 路径中提取模型名
+// 输入格式: /v1beta/models/gemini-2.0-flash:generateContent
+// 输出: gemini-2.0-flash
 func extractModelNameFromGeminiPath(path string) string {
+	// 查找 "/models/" 的位置
 	modelsPrefix := "/models/"
 	modelsIndex := strings.Index(path, modelsPrefix)
 	if modelsIndex == -1 {
 		return ""
 	}
 
+	// 从 "/models/" 之后开始提取
 	startIndex := modelsIndex + len(modelsPrefix)
 	if startIndex >= len(path) {
 		return ""
 	}
 
+	// 查找 ":" 的位置，模型名在 ":" 之前
 	colonIndex := strings.Index(path[startIndex:], ":")
 	if colonIndex == -1 {
+		// 如果没有找到 ":"，返回从 "/models/" 到路径结尾的部分
 		return path[startIndex:]
 	}
 
+	// 返回模型名部分
 	return path[startIndex : startIndex+colonIndex]
 }
